@@ -22,3 +22,4 @@ Repositories using `VITools`
 - `PedSilicoICH <https://github.com/DIDSR/PedSilicoICH>`_ for generating synthetic non contrast CT datasets of intracranial hemorrhage (ICH)
 - `PedSilicoLVO <https://github.com/brandonjnelsonFDA/PedSilicoLVO>`_ for generating synthetic large vessel occlusion (LVO) non contrast CT datasets
 - `PedSilicoAbdomen <https://github.com/DIDSR/PedSilicoAbdomen>`_ for generating synthetic abdominal non contrast CT datasets of liver metastases
+- `InSilicoGUI <https://github.com/DIDSR/InSilicoGUI>`_ Provides a graphical user interface to the phantoms and imaging simulations

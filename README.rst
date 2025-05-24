@@ -9,6 +9,13 @@ Tools for running virtual imaging trials, including object oriented wrappers for
 
 IQ phantoms from `pediatricIQphantoms <https://github.com/DIDSR/pediatricIQphantoms>`_
 
+Installation
+------------
+
+.. code-block:: bash
+
+        pip install git+https://github.com/DIDSR/VITools.git
+
 Repositories using `VITools`
 ---------------------------- 
 

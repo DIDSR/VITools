@@ -39,36 +39,6 @@ def load_vol(file_list):
     return np.stack(list(map(read_dicom, file_list)))
 
 
-def load_phantom(name='Densitometry Phantom', shape=None):
-    '''
-    Loads appropriate phantom based on age as a keyword
-
-    :param name: phantom name, if a head phanton this is patient age in years, MIDA currently hard coded at 38 yrs
-        see `ground_truth_definitions.phantoms.possible_ages` for ages
-    :param shape: shape of that the ground truth phantom will be interpolated
-    :param name: patient name to be saved in DICOM header
-    '''
-
-    matrix_size = max(shape) if shape else 400
-    if name in available_phantoms:
-        phantom_cls = available_phantoms[name]
-        if name.endswith('Head'):  # add UNC, NIHPD to phantomdir
-            phantom = phantom_cls(shape=shape)
-        else:
-            phantom = phantom_cls(matrix_size=matrix_size)
-    elif isinstance(name, str) and Path(name).exists():
-        img = sitk.ReadImage(name)
-        phantom = Phantom(sitk.GetArrayFromImage(img),
-                          spacings=img.GetSpacing()[::-1])
-    elif isinstance(name, float | int):
-        name = [o for o in available_phantoms.keys() if o.startswith(str(name))][0]
-        phantom_cls = available_phantoms[name]
-        phantom = phantom_cls(shape=shape)
-    else:
-        raise ValueError(f'{name} is not in {list(available_phantoms.keys())} nor is it a path')
-    return phantom
-
-
 class Study:
     def __init__(self, scanner: Scanner, study_name='default'):
         self.scanner = scanner

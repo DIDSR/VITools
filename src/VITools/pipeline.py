@@ -10,11 +10,9 @@ import ast
 import pandas as pd
 import numpy as np
 import pydicom
-import SimpleITK as sitk
 from scipy.ndimage import center_of_mass
 
 from .image_acquisition import Scanner, read_dicom
-from .phantoms import Phantom
 from . import hooks
 import pluggy
 

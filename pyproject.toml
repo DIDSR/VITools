@@ -8,9 +8,7 @@ description = "VITools: tools for conducting virtual imaging trials"
 readme = "README.rst"
 requires-python = ">=3.8"
 dependencies = [
-  "monai",
   "pandas",
-  "pydicom==2.4.4",
   "pytest",
   "gecatsim @ git+https://github.com/xcist/main.git"
 ]

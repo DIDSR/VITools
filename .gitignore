@@ -12,6 +12,7 @@ build
 *.prep
 *.scan
 *.json
+*.cfg
 *.zip
 notebooks/data
 __pycache__

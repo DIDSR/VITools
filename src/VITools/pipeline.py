@@ -3,19 +3,70 @@ pipeline: this high level module organizes the healthy head phantoms,
 lesion definitions, augmentations, and CT simulation together into the final
 ct_simulation function.
 '''
-from pathlib import Path
-from shutil import rmtree
 
+from pathlib import Path
+import ast
+
+import pandas as pd
 import numpy as np
 import pydicom
-import pandas as pd
+import SimpleITK as sitk
 from scipy.ndimage import center_of_mass
 
 from .image_acquisition import Scanner, read_dicom
+from .phantoms import Phantom
+from . import hooks
+import pluggy
+
+
+def get_available_phantoms():
+    pm = pluggy.PluginManager(hooks.PROJECT_NAME)
+    pm.add_hookspecs(hooks.PhantomSpecs)
+    num_loaded = pm.load_setuptools_entrypoints(group=hooks.PROJECT_NAME)
+
+    # --- Call the hook to get all registered phantom types ---
+    # The hook returns a list of lists (one list per plugin implementation that returned something)
+    list_of_results = pm.hook.register_phantom_types()
+    # Flatten the list of lists and filter out None or empty lists from plugins
+    discovered_phantom_classes = {}
+    for result_list in list_of_results:
+        if result_list:  # Check if the plugin returned a non-empty list
+            discovered_phantom_classes.update(result_list)
+    return discovered_phantom_classes
 
 
 def load_vol(file_list):
     return np.stack(list(map(read_dicom, file_list)))
+
+
+def load_phantom(name='Densitometry Phantom', shape=None):
+    '''
+    Loads appropriate phantom based on age as a keyword
+
+    :param name: phantom name, if a head phanton this is patient age in years, MIDA currently hard coded at 38 yrs
+        see `ground_truth_definitions.phantoms.possible_ages` for ages
+    :param shape: shape of that the ground truth phantom will be interpolated
+    :param name: patient name to be saved in DICOM header
+    '''
+
+    matrix_size = max(shape) if shape else 400
+    if name in available_phantoms:
+        phantom_cls = available_phantoms[name]
+        if name.endswith('Head'):  # add UNC, NIHPD to phantomdir
+            phantom = phantom_cls(shape=shape)
+        else:
+            phantom = phantom_cls(matrix_size=matrix_size)
+    elif isinstance(name, str) and Path(name).exists():
+        img = sitk.ReadImage(name)
+        phantom = Phantom(sitk.GetArrayFromImage(img),
+                          spacings=img.GetSpacing()[::-1])
+    elif isinstance(name, float | int):
+        name = [o for o in available_phantoms.keys() if o.startswith(str(name))][0]
+        phantom_cls = available_phantoms[name]
+        phantom = phantom_cls(shape=shape)
+    else:
+        raise ValueError(f'{name} is not in {list(available_phantoms.keys())} nor is it a path')
+    return phantom
 
 
 class Study:
@@ -50,23 +101,34 @@ class Study:
     def size(self):
         return np.array(self.phantom.spacings)*self.phantom._phantom.shape
 
-    def run_study(self, output_directory=None, kVp=120, mA=200, views=1000,
-                  fov=250, zspan='dynamic',
-                  kernel='standard', slice_thickness=1, **kwargs):
+    def run_study(self, output_directory=None, kVp=120, mA=200, pitch=0,
+                  views=1000, fov=250, zspan='dynamic', kernel='standard',
+                  slice_thickness=1, slice_increment=None, **kwargs):
         patient_name = self.phantom.patient_name
         age = self.phantom.age
-        lesion_type = self.phantom.lesion_type
-        intensity = self.phantom.lesion_intensity
+        lesion_type = self.phantom.lesion_type if hasattr(self.phantom,
+                                                          'lesion_type') else None
+        intensity = self.phantom.lesion_intensity if hasattr(self.phantom,
+                                                             'lesion_intensity') else None
 
         ct = self.scanner
-        if zspan == 'dynamic':
-            startZ, endZ = ct.recommend_scan_range()
+        if isinstance(zspan, float):
+            if np.isnan(zspan):
+                zspan = 'dynamic'
+        if isinstance(zspan, str):
+            if zspan == 'dynamic':
+                startZ, endZ = ct.recommend_scan_range()
+            if zspan.startswith('['):
+                zspan = ast.literal_eval(zspan)
+                startZ, endZ = zspan
         elif isinstance(zspan, tuple | list):
             startZ, endZ = zspan
-
+        views = int(views)
         ct.run_scan(startZ=startZ, endZ=endZ, views=views,
-                    mA=mA, kVp=kVp)
-        ct.run_recon(fov=fov, kernel=kernel, sliceThickness=slice_thickness)
+                    mA=mA, kVp=kVp, pitch=pitch)
+        ct.run_recon(fov=fov, kernel=kernel,
+                     sliceThickness=slice_thickness,
+                     sliceIncrement=slice_increment)
         self.scanner = ct
         self.images = ct.recon
         if output_directory is None:
@@ -93,7 +155,7 @@ class Study:
             self.lesion = mask & (self.images > self.images.mean())
             self.scanner.recon = self.images
 
-            dcm = pydicom.read_file(mask_files[0])
+            dcm = pydicom.dcmread(mask_files[0])
             spacings = list(map(float, [dcm.SliceThickness] +
                             list(dcm.PixelSpacing)))
 
@@ -151,23 +213,24 @@ class Study:
             center_x_list.append(slice_x)
             center_y_list.append(slice_y)
             center_z_list.append(slice_z)
-            lesion_volume_list.append(vol_ml)
+            lesion_volume_list.append([float(vol_ml)])
 
-        metadata = pd.DataFrame({'name': names,
-                                 'age': ages,
-                                 'intensity': intensity_list,
-                                 'center x': center_x_list,
-                                 'center y': center_y_list,
-                                 'center z': center_z_list,
-                                 'lesion type': lesion_type_list,
-                                 'mass effect': mass_effect,
-                                 'lesion volume [mL]': lesion_volume_list,
-                                 'mA': mA_list,
+        metadata = pd.DataFrame({'Name': names,
+                                 'Age': ages,
                                  'kVp': kVps,
-                                 'views': views_list,
-                                 'fov [mm]': fovs,
-                                 'kernel': kernels,
-                                 'image file': files,
-                                 'mask file': masks})
+                                 'mA': mA_list,
+                                 'Views': views_list,
+                                 'ReconKernel': kernels,
+                                 'SliceThickness(mm)': slice_thickness,
+                                 'LesionAttenuation(HU)': intensity_list,
+                                 'LesionVolume(mL)': lesion_volume_list,
+                                 'Subtype': lesion_type_list,
+                                 'MassEffect': mass_effect,
+                                 'CenterX': center_x_list,
+                                 'CenterY': center_y_list,
+                                 'CenterZ': center_z_list,
+                                 'FOV(mm)': fovs,
+                                 'ImageFilePath': files,
+                                 'MaskFilePath': masks})
         self.metadata = metadata
         return self

@@ -80,7 +80,7 @@ def initialize_xcist(ground_truth_image, spacings=(1, 1, 1),
     print('Initializing Scanner object...')
     print(''.join(10*['-']))
     # load defaults
-    scanner_path=install_path / 'defaults'/ scanner_model
+    scanner_path = install_path / 'defaults'/ scanner_model
 
     ct = xc.CatSim(install_path / 'defaults' / 'Phantom_Default',
                    install_path / 'defaults' / 'Physics_Default',
@@ -197,7 +197,7 @@ class Scanner():
     def nominal_aperature(self):
         M = self.xcist.cfg.scanner.sdd/self.xcist.cfg.scanner.sid
         sliceThickness = self.xcist.cfg.scanner.detectorRowSize/M
-        return sliceThickness*self.xcist.cfg.scanner.detectorRowCount # nominal_aperature == s
+        return sliceThickness*self.xcist.cfg.scanner.detectorRowCount
 
     def load_scanner_config(self, filename: str = 'Scanner_Default'):
         if filename in available_scanners:
@@ -495,7 +495,7 @@ class Scanner():
         sliceThickness = int(sliceThickness) if sliceThickness else sliceIncrement
         if not (sliceIncrement or sliceThickness):
             return self
-        n_slices = self.xcist.recon.sliceCount*len(self._projections)
+        n_slices = len(self.recon)
         starts = np.arange(0, n_slices, sliceIncrement, dtype=int)
         for slab_start in starts:
             recons.append(self.recon[slab_start:slab_start+sliceThickness].mean(axis=0))

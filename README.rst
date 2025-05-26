@@ -9,6 +9,14 @@ Tools for running virtual imaging trials, including object oriented wrappers for
 
 Virtual Imaging Tools (VITools) provides basic building blocks for designing and running virtual imaging trials:
 
+.. code-block:: python
+
+        from VITools import Phantom, Scanner, Study
+        phantom = Phantom(img, spacings)
+        scanner = Scanner(phantom)
+        study = Study(scanner)
+        study.run_study()
+
 1. `Phantom <https://github.com/DIDSR/VITools/blob/master/src/VITools/phantoms.py#L58-L71>`_: defines the subject to be imaged. Parameterized by a voxel array `img` and voxel size `spacings`.
 2. `Scanner <http://github.com/DIDSR/VITools/blob/master/src/VITools/image_acquisition.py#L117-L152>`_: defines the imaging device. Parameterized by geometry, source, and detector characteristics defined in configuration files. Initialized with a `Phantom`.
 3. `Study <>`_: defines the study to be simulated and organizes metadata. Initialized by a `Scanner`

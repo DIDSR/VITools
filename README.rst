@@ -12,6 +12,9 @@ Virtual Imaging Tools (VITools) provides basic building blocks for designing and
 .. code-block:: python
 
         from VITools import Phantom, Scanner, Study
+				from utils import create_circle_phantom
+				img = create_circle_phantom()
+				spacings = (200, 1, 1)
         phantom = Phantom(img, spacings)
         scanner = Scanner(phantom)
         study = Study(scanner)

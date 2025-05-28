@@ -3,7 +3,7 @@
 
 notebooks/*/*.png
 build
-
+.vitools
 *.raw
 *.air
 *.offset
@@ -21,3 +21,4 @@ __pycache__
 .vscode
 .pytest_cache
 src/VITools.egg-info
+.ipynb_checkpoints

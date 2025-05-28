@@ -61,14 +61,6 @@ class Study:
         '''
         return repr
 
-    @property
-    def shape(self):
-        return list(self.phantom._phantom.shape)
-
-    @property
-    def size(self):
-        return np.array(self.phantom.spacings)*self.phantom._phantom.shape
-
     def run_study(self, output_directory=None, kVp=120, mA=200, pitch=0,
                   views=1000, fov=250, zspan='dynamic', kernel='standard',
                   slice_thickness=1, slice_increment=None, **kwargs):

@@ -28,3 +28,6 @@ where = ["src"]
 [project.urls]
 Homepage = "https://github.com/brandonjnelsonFDA/VIT-Tools"
 Issues = "https://github.com/brandonjnelsonFDA/VIT-Tools/issues"
+
+[project.scripts]
+generate = "VITools.study:vit_cli"

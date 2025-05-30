@@ -13,6 +13,7 @@ build
 *.scan
 *.json
 *.cfg
+*.csv
 *.zip
 notebooks/data
 __pycache__
@@ -22,3 +23,7 @@ __pycache__
 .pytest_cache
 src/VITools.egg-info
 .ipynb_checkpoints
+.env
+*-BATCH_*
+logs
+core*

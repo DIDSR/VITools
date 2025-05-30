@@ -56,8 +56,8 @@ Results:\n
             if output_dir.exists():
                 rmtree(output_dir)
 
-    def generate_from_distributions(StudyCount: int = 1,
-                                    phantoms: list[str] = get_available_phantoms(),
+    def generate_from_distributions(Phantoms: list[str],
+                                    StudyCount: int,
                                     OutputDirectory: str | Path = 'results',
                                     Views: list[int] = [1000],
                                     ScanCoverage='dynamic',
@@ -129,7 +129,7 @@ Results:\n
         for i in range(StudyCount):
             casestr = f'case_{i:04d}'
             params['CaseID'].append(casestr)
-            params['Phantom'].append(random.choice(list(phantoms)))
+            params['Phantom'].append(random.choice(list(Phantoms)))
             params['ScannerModel'].append(random.choice(ScannerModel))
             params['kVp'].append(float(random.choice(kVp_list)))
             params['mA'].append(float(random.choice(mA_list)))
@@ -178,7 +178,8 @@ Results:\n
              'FOV': [FOV],
              'RemoveRawData': [RemoveRawData]}
                 )
-        caseid = self.metadata['CaseID'].max() + 1 if 'CaseID' in self.metadata else 0
+        caseid = int(self.metadata['CaseID'].max().split('case_')[-1]) + 1 if\
+            'CaseID' in self.metadata else 0
         casestr = f'case_{caseid:04d}'
         series['CaseID'] = casestr
         series['OutputDirectory'] = [Path(OutputDirectory) / casestr]
@@ -292,7 +293,7 @@ Results:\n
                        index=False)
         if series.RemoveRawData:
             rmtree(OutputDirectory / patient_name)
-            [os.remove(o) for o in Path('.').rglob('VIT-BATCH_*')]
+            [os.remove(o) for o in Path('.').rglob('VIT-BATCH*') if o.is_file()]
         return self
 
 

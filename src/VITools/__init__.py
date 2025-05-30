@@ -20,4 +20,5 @@ def get_available_phantoms():
             discovered_phantom_classes.update(result_list)
     return discovered_phantom_classes
 
+
 from .study import Study

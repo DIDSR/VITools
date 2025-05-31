@@ -1,5 +1,6 @@
 from .phantom import Phantom
 from .scanner import Scanner, read_dicom, available_scanners
+from .study import Study
 from . import hooks
 
 import pluggy

@@ -57,7 +57,7 @@ Results:\n
                 rmtree(output_dir)
 
     def generate_from_distributions(Phantoms: list[str],
-                                    StudyCount: int,
+                                    StudyCount: int = 1,
                                     OutputDirectory: str | Path = 'results',
                                     Views: list[int] = [1000],
                                     ScanCoverage='dynamic',
@@ -122,6 +122,8 @@ Results:\n
             'SliceThickness': [],
             'SliceIncrement': [],
             'FOV': [],
+            'GlobalSeed': [],
+            'CaseSeed': [],
             'OutputDirectory': [],
             'RemoveRawData': []
         }
@@ -140,6 +142,8 @@ Results:\n
             params['SliceThickness'].append(random.choice(slice_thickness_list))
             params['SliceIncrement'].append(random.choice(slice_increment_list))
             params['FOV'].append(random.choice(FOV_list))
+            params['GlobalSeed'].append(global_seed)
+            params['CaseSeed'].append(random.integers(0, 1e6))
             params['OutputDirectory'].append(OutputDirectory / casestr)
             params['RemoveRawData'].append(RemoveRawData)
         return pd.DataFrame(params)

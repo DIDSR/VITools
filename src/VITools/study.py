@@ -1,5 +1,9 @@
 '''
-The script defines a class `study` with a method `run_series`. This method appears to perform several tasks
+This module provides tools for setting up, managing, and running virtual imaging studies.
+
+It defines a `Study` class to organize simulation parameters and results, 
+a function to discover available phantom types via a plugin system, 
+and a command-line interface for executing studies.
 '''
 
 import os
@@ -23,6 +27,13 @@ src_dir = Path(__file__).parent.absolute()
 
 
 def get_available_phantoms():
+    '''
+    This module provides tools for setting up, managing, and running virtual imaging studies.
+
+    It defines a `Study` class to organize simulation parameters and results, 
+    a function to discover available phantom types via a plugin system, 
+    and a command-line interface for executing studies.
+    '''
     pm = pluggy.PluginManager(hooks.PROJECT_NAME)
     pm.add_hookspecs(hooks.PhantomSpecs)
     pm.load_setuptools_entrypoints(group=hooks.PROJECT_NAME)
@@ -40,9 +51,26 @@ def get_available_phantoms():
 
 class Study:
     '''
-    defines the study to be simulated and organizes metadata. Initialized by a `Scanner`
+    Manages and executes a series of imaging simulations (a "study").
+
+    This class handles the definition of study parameters, loading study configurations
+    from CSV files or DataFrames, generating scan parameters from distributions,
+    and running the simulations either serially or in parallel (if a queuing system
+    like qsub or SLURM is available). It also tracks and retrieves simulation results.
+
+    Attributes:
+        metadata (pd.DataFrame): A DataFrame holding the parameters for each scan 
+                                 in the study.
     '''
     def __init__(self, input_csv: pd.DataFrame | str | None = None):
+        '''
+        Initializes a Study instance.
+
+        Args:
+            input_csv (pd.DataFrame | str | None, optional): 
+                Path to a CSV file or a pandas DataFrame containing study metadata. 
+                If None, an empty study is initialized. Defaults to None.
+        '''
         self.metadata = pd.DataFrame()
         if input_csv is not None:
             self.load_study(input_csv)
@@ -61,12 +89,26 @@ Results:\n
         return repr
 
     def load_study(self, input_csv: str | Path | pd.DataFrame):
+        '''
+        Loads study metadata from a CSV file or a pandas DataFrame.
+
+        Args:
+            input_csv (str | Path | pd.DataFrame): 
+                The path to a CSV file or a pandas DataFrame containing the study parameters.
+                The loaded data replaces any existing metadata in the `self.metadata` attribute.
+        '''
         if isinstance(input_csv, pd.DataFrame):
             self.metadata = input_csv
         elif isinstance(input_csv, str | Path):
             self.metadata = pd.read_csv(input_csv)
 
     def clear_previous_results(self):
+        '''
+        Removes output directories associated with each scan in the current study metadata.
+
+        This is typically used to clean up before re-running a study. It iterates through
+        the 'OutputDirectory' column in the metadata and deletes each directory if it exists.
+        '''
         for idx in range(len(self.metadata)):
             output_dir = Path(self.metadata.iloc[idx]['OutputDirectory'])
             if output_dir.exists():
@@ -88,9 +130,50 @@ Results:\n
                                     RemoveRawData: bool = True,
                                     Seed: int | None = None):
         '''
-        generate metadata from distributions,
+        Generates study metadata by sampling parameters from specified distributions.
 
-        each parameter specified as a list or dataframe
+        For each of `StudyCount` cases, parameters like phantom type, scanner model,
+        kVp, mA, etc., are chosen randomly from the provided lists. This method
+        allows for the creation of diverse datasets for simulation.
+
+        Args:
+            Phantoms (list[str]): List of phantom names to choose from.
+            StudyCount (int, optional): Number of scan configurations to generate. 
+                                        Defaults to 1.
+            OutputDirectory (str | Path, optional): Base directory for output. 
+                                                   Individual case directories will be 
+                                                   created under this path. 
+                                                   Defaults to 'results'.
+            Views (list[int], optional): List of view counts for projection data. 
+                                         Defaults to [1000].
+            ScanCoverage (str | list | tuple, optional): 
+                Scan coverage specification. Can be 'dynamic' (to auto-determine) 
+                or a list/tuple of [start_z, end_z]. Defaults to 'dynamic'.
+            ScannerModel (list[str], optional): List of scanner model names. 
+                                                Defaults to ['Scanner_Default'].
+            kVp (list[int], optional): List of kilovolt peak values. Defaults to [120].
+            mA (list[int], optional): List of milliampere values. Defaults to [300].
+            Pitch (list[float], optional): List of pitch values. Defaults to [0].
+            ReconKernel (list[str], optional): List of reconstruction kernel names. 
+                                              Defaults to ['soft'].
+            SliceThickness (list[int], optional): List of slice thicknesses in mm. 
+                                                 Defaults to [1].
+            SliceIncrement (list[int], optional): List of slice increments in mm. 
+                                                 Defaults to [1].
+            FOV (list[float], optional): List of Field of View values in mm. 
+                                        Defaults to [250].
+            RemoveRawData (bool, optional): Whether to remove raw projection data 
+                                            after reconstruction. Defaults to True.
+            Seed (int | None, optional): 
+                Seed for the random number generator. If None or False, a random seed 
+                is used. If an integer, that seed is used. Defaults to None.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing the generated study parameters, 
+                          one row per scan.
+
+        Raises:
+            ValueError: If `Seed` is a float or True.
         '''
         OutputDirectory = Path(OutputDirectory)
         assert (ScanCoverage == 'dynamic') or isinstance(ScanCoverage, list | tuple)
@@ -174,7 +257,42 @@ Results:\n
                SliceThickness: int | None = 1,
                SliceIncrement: int | None = None,
                RemoveRawData: bool = True, **kwargs):
-        '''add scan or scans to study'''
+        '''
+        Appends one or more scans to the study's metadata.
+
+        If `Phantom` is a DataFrame, it's concatenated to the existing metadata.
+        Otherwise, a new scan configuration is created using the provided parameters
+        and added to the metadata.
+
+        Args:
+            Phantom (str | pd.DataFrame): 
+                The name of the phantom to use (must be an available phantom type)
+                or a pandas DataFrame containing scan parameters to append.
+            OutputDirectory (str | Path, optional): Base directory for output. 
+                                                   Defaults to 'results'.
+            ScannerModel (str, optional): Scanner model name. Defaults to 'Scanner_Default'.
+            kVp (int, optional): Kilovolt peak value. Defaults to 120.
+            mA (int, optional): Milliampere value. Defaults to 200.
+            Pitch (float, optional): Pitch value. Defaults to 0.
+            Views (int, optional): Number of views for projection. Defaults to 1000.
+            FOV (float, optional): Field of View in mm. Defaults to 250.
+            ScanCoverage (tuple[float,...] | str, optional): 
+                Scan coverage. Can be 'dynamic' or a tuple (start_z, end_z). 
+                Defaults to 'dynamic'.
+            ReconKernel (str, optional): Reconstruction kernel name. Defaults to 'standard'.
+            SliceThickness (int | None, optional): Slice thickness in mm. Defaults to 1.
+            SliceIncrement (int | None, optional): Slice increment in mm. 
+                                                  Defaults to `SliceThickness` if None.
+            RemoveRawData (bool, optional): Whether to remove raw data after reconstruction. 
+                                            Defaults to True.
+            **kwargs: Additional keyword arguments (currently unused).
+
+        Returns:
+            Study: The Study instance itself, allowing for method chaining.
+
+        Raises:
+            KeyError: If the specified `Phantom` name is not an available phantom type.
+        '''
         if isinstance(Phantom, pd.DataFrame):
             self.metadata = pd.concat([self.metadata, Phantom], ignore_index=True)
             self.metadata['CaseID'] = list(map(lambda o: f'case_{o:04d}',
@@ -207,6 +325,18 @@ Results:\n
         return self
 
     def get_scans_completed(self):
+        '''
+        Collects and returns metadata from all completed scans in the study.
+
+        It searches for 'metadata_*.csv' files within the output directories specified
+        in the study's metadata. These files are assumed to contain results from
+        individual scan simulations.
+
+        Returns:
+            pd.DataFrame | list: 
+                A pandas DataFrame concatenating all found metadata CSV files.
+                Returns an empty list if no result files are found.
+        '''
         scans_completed = 0
         results_files = []
         for idx in range(len(self.metadata)):
@@ -223,6 +353,22 @@ Results:\n
                          ignore_index=True)
 
     def run_all(self, parallel=True) -> pd.DataFrame:
+        '''
+        Runs all scans defined in the study.
+
+        Clears previous results, then attempts to run scans in parallel using qsub
+        if `parallel` is True and qsub is available. Otherwise, runs scans serially.
+        It monitors the progress of parallel jobs and waits for their completion.
+
+        Args:
+            parallel (bool, optional): 
+                If True, attempts to run scans in parallel using a batch system.
+                If False or if the batch system is not found, runs serially.
+                Defaults to True.
+
+        Returns:
+            Study: The Study instance itself, after all scans have been processed.
+        '''
         self.clear_previous_results()
         patientids = list(range(len(self.metadata)))
         if parallel:
@@ -268,6 +414,32 @@ Results:\n
         return self.get_scans_completed()
 
     def run_study(self, patientid: int = 0):
+        '''
+        Runs a single simulation study for a specific patient/case ID.
+
+        This method orchestrates the simulation for one entry in the `self.metadata`
+        DataFrame. It involves:
+        1. Initializing the specified phantom.
+        2. Setting up the virtual scanner.
+        3. Determining the scan range (z-axis coverage).
+        4. Running the scan (projection data generation).
+        5. Running the reconstruction.
+        6. Writing the reconstructed images to DICOM files.
+        7. Saving metadata about the scan.
+        8. Optionally, removing raw projection data.
+
+        Args:
+            patientid (int, optional): 
+                The index of the scan configuration in `self.metadata` to run. 
+                Defaults to 0 (the first scan).
+
+        Returns:
+            Study: The Study instance itself.
+
+        Raises:
+            KeyError: If the phantom specified in the metadata is not found.
+            IndexError: If `patientid` is out of bounds for `self.metadata`.
+        '''
         series = self.metadata.iloc[patientid]
         available_phantoms = get_available_phantoms()
         phantom = available_phantoms[series.Phantom]()
@@ -318,6 +490,21 @@ Results:\n
 
 
 def vit_cli(arg_list: list[str] | None = None):
+    '''
+    Command-line interface for running Virtual Imaging Tools (VITools) simulations.
+
+    Parses command-line arguments to specify an input CSV file for study parameters
+    and an option to run simulations in parallel. If no input CSV is provided via
+    arguments, it attempts to read from stdin.
+
+    The input CSV can define a study to be run. This function initializes a `Study`
+    object with this CSV and then calls its `run_all` method.
+
+    Args:
+        arg_list (list[str] | None, optional): 
+            A list of command-line arguments to parse. If None, `sys.argv[1:]` is used.
+            Defaults to None.
+    '''
     parser = ArgumentParser(
         description='Runs Virtual Imaging Tools (VITools) simulations',
         epilog='''

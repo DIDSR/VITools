@@ -14,12 +14,28 @@ from argparse import ArgumentParser
 
 import pandas as pd
 import numpy as np
+import pluggy
 
 from .scanner import Scanner
-
-from VITools import get_available_phantoms
+from . import hooks
 
 src_dir = Path(__file__).parent.absolute()
+
+
+def get_available_phantoms():
+    pm = pluggy.PluginManager(hooks.PROJECT_NAME)
+    pm.add_hookspecs(hooks.PhantomSpecs)
+    pm.load_setuptools_entrypoints(group=hooks.PROJECT_NAME)
+
+    # --- Call the hook to get all registered phantom types ---
+    # The hook returns a list of lists (one list per plugin implementation that returned something)
+    list_of_results = pm.hook.register_phantom_types()
+    # Flatten the list of lists and filter out None or empty lists from plugins
+    discovered_phantom_classes = {}
+    for result_list in list_of_results:
+        if result_list:  # Check if the plugin returned a non-empty list
+            discovered_phantom_classes.update(result_list)
+    return discovered_phantom_classes
 
 
 class Study:
@@ -164,9 +180,9 @@ Results:\n
             self.metadata['CaseID'] = list(map(lambda o: f'case_{o:04d}',
                                            range(len(self.metadata))))
             return self
-
-        if Phantom not in get_available_phantoms():
-            raise KeyError(f'phantom {Phantom} not available. Available phantoms are {get_available_phantoms}')
+        available_phantoms = get_available_phantoms()
+        if Phantom not in available_phantoms:
+            raise KeyError(f'phantom {Phantom} not available. Available phantoms are {available_phantoms}')
 
         series = pd.DataFrame(
             {'Phantom': [Phantom],

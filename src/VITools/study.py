@@ -21,6 +21,7 @@ import numpy as np
 import pluggy
 
 from .scanner import Scanner
+from .phantom import Phantom
 from . import hooks
 
 src_dir = Path(__file__).parent.absolute()
@@ -256,6 +257,7 @@ Results:\n
                ReconKernel: str = 'standard',
                SliceThickness: int | None = 1,
                SliceIncrement: int | None = None,
+               Seed: int | None = None,
                RemoveRawData: bool = True, **kwargs):
         '''
         Appends one or more scans to the study's metadata.
@@ -283,6 +285,9 @@ Results:\n
             SliceThickness (int | None, optional): Slice thickness in mm. Defaults to 1.
             SliceIncrement (int | None, optional): Slice increment in mm. 
                                                   Defaults to `SliceThickness` if None.
+            Seed (int | None, optional):
+                Seed for the random number generator. If None or False, a random seed 
+                is used. If an integer, that seed is used. Defaults to None.
             RemoveRawData (bool, optional): Whether to remove raw data after reconstruction. 
                                             Defaults to True.
             **kwargs: Additional keyword arguments (currently unused).
@@ -314,6 +319,7 @@ Results:\n
              'SliceThickness': [SliceThickness],
              'SliceIncrement': [SliceIncrement],
              'FOV': [FOV],
+             'CaseSeed': [Seed],
              'RemoveRawData': [RemoveRawData]}
                 )
         caseid = int(self.metadata['CaseID'].max().split('case_')[-1]) + 1 if\
@@ -371,18 +377,23 @@ Results:\n
         '''
         self.clear_previous_results()
         patientids = list(range(len(self.metadata)))
+        returncode = True
         if parallel:
-            out = run(["qsub", "--help"])
-            returncode = out.returncode
-            if returncode:
-                parallel = False
-                print('qsub not found, running in serial mode')
-            else:
-                output = Path(self.metadata.iloc[0]['OutputDirectory']).parent  # move inside loop
-                output.mkdir(exist_ok=True, parents=True)
-                csv_fname = output / 'sim_input.csv'
-                csv_fname = csv_fname.absolute()
-                self.metadata.to_csv(csv_fname)
+            try:
+                out = run(["qsub", "--help"])
+                returncode = out.returncode
+            except FileNotFoundError:
+                returncode = True
+        if returncode:
+            parallel = False
+            print('qsub not found, running in serial mode')
+        else:
+            output = Path(self.metadata.iloc[0]['OutputDirectory']).parent
+            output.mkdir(exist_ok=True, parents=True)
+            csv_fname = output / 'sim_input.csv'
+            csv_fname = csv_fname.absolute()
+            self.metadata.to_csv(csv_fname)
+
         try:
             patientids = [int(os.environ['SLURM_ARRAY_TASK_ID']) - 1]
             print(f'Now running from job {patientids[0] + 1}')
@@ -395,9 +406,16 @@ Results:\n
                  f'{csv_fname}'])
         else:
             for patientid in tqdm(patientids):
-                self.run_study(patientid)
-        output_df = self.get_scans_completed()
+                results = self.run_study(patientid)
+                series = self.metadata.iloc[patientid]
+                OutputDirectory = Path(series.OutputDirectory)
+                results.to_csv(OutputDirectory / f'metadata_{patientid}.csv',
+                               index=False)
+                if series.RemoveRawData:
+                    rmtree(OutputDirectory / series.Phantom)
+                    [os.remove(o) for o in Path('.').rglob('VIT-BATCH*') if o.is_file()]
 
+        output_df = self.get_scans_completed()
         scans_queued = len(patientids)
         scans_completed = len(self.get_scans_completed())
         with tqdm(total=scans_queued, desc='Scans completed in parallel') as pbar:
@@ -412,6 +430,11 @@ Results:\n
     @property
     def results(self):
         return self.get_scans_completed()
+
+    def load_phantom(self,  patientid: int = 0) -> Phantom:
+        series = self.metadata.iloc[patientid]
+        available_phantoms = get_available_phantoms()
+        return available_phantoms[series.Phantom]()
 
     def run_study(self, patientid: int = 0):
         '''
@@ -441,36 +464,37 @@ Results:\n
             IndexError: If `patientid` is out of bounds for `self.metadata`.
         '''
         series = self.metadata.iloc[patientid]
-        available_phantoms = get_available_phantoms()
-        phantom = available_phantoms[series.Phantom]()
+        phantom = self.load_phantom(patientid)
         patient_name = phantom.patient_name
         age = phantom.age if hasattr(phantom, 'age') else 0
-        scanner = Scanner(phantom, series.ScannerModel,
-                          output_dir=series.OutputDirectory)
+        self.scanner = Scanner(phantom, series.ScannerModel,
+                               output_dir=series.OutputDirectory)
         ScanCoverage = series.ScanCoverage
         if isinstance(ScanCoverage, float):
             if np.isnan(ScanCoverage):
                 ScanCoverage = 'dynamic'
         if isinstance(ScanCoverage, str):
             if ScanCoverage == 'dynamic':
-                startZ, endZ = scanner.recommend_scan_range()
+                startZ, endZ = self.scanner.recommend_scan_range()
             else:
                 ScanCoverage = ast.literal_eval(ScanCoverage)
                 startZ, endZ = ScanCoverage
         elif isinstance(ScanCoverage, tuple | list):
             startZ, endZ = ScanCoverage
-        scanner.run_scan(startZ=startZ, endZ=endZ, views=int(series.Views),
-                         mA=series.mA, kVp=series.kVp, pitch=series.Pitch)
-        scanner.run_recon(fov=series.FOV, kernel=series.ReconKernel,
-                          sliceThickness=series.SliceThickness,
-                          sliceIncrement=series.SliceIncrement)
+        self.scanner.run_scan(startZ=startZ, endZ=endZ,
+                              views=int(series.Views),
+                              mA=series.mA, kVp=series.kVp, pitch=series.Pitch)
+        self.scanner.run_recon(fov=series.FOV, kernel=series.ReconKernel,
+                               sliceThickness=series.SliceThickness,
+                               sliceIncrement=series.SliceIncrement)
 
         OutputDirectory = series.OutputDirectory or self.scanner.output_dir
         OutputDirectory = Path(OutputDirectory)
         dicom_path = OutputDirectory / 'dicoms'
-        dcm_files = scanner.write_to_dicom(dicom_path / f'{patient_name}.dcm')
+        dcm_files = self.scanner.write_to_dicom(dicom_path / f'{patient_name}.dcm')
         nslices = len(dcm_files)
-        results = pd.DataFrame({'Name': nslices*[patient_name],
+        results = pd.DataFrame({'CaseID': nslices*[series.CaseID],
+                                'Name': nslices*[patient_name],
                                 'Age': nslices*[age],
                                 'kVp': nslices*[series.kVp],
                                 'mA': nslices*[series.mA],
@@ -481,12 +505,7 @@ Results:\n
                                 'SliceIncrement': nslices*[series.SliceIncrement],
                                 'FOV': nslices*[series.FOV],
                                 'ImageFilePath': dcm_files})
-        results.to_csv(OutputDirectory / f'metadata_{patientid}.csv',
-                       index=False)
-        if series.RemoveRawData:
-            rmtree(OutputDirectory / patient_name)
-            [os.remove(o) for o in Path('.').rglob('VIT-BATCH*') if o.is_file()]
-        return self
+        return results
 
 
 def vit_cli(arg_list: list[str] | None = None):

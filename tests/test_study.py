@@ -26,4 +26,4 @@ def test_study():
     results3 = study3.results
 
     assert results1.equals(results2)
-    print(len(results1), len(results2), len(results3)) # eventually len(results3) == 2 * len(results1) + 7
+    print(len(results1), len(results2), len(results3))  # eventually len(results3) == 2 * len(results1) + 7

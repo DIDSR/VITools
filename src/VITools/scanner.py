@@ -1,5 +1,14 @@
 """
-Module responsible for CT image acquisition simulation
+This module is responsible for simulating CT image acquisition using the GECATSim library.
+
+It provides functionalities for:
+- Reading and writing DICOM files.
+- Preparing and voxelizing phantoms for simulation.
+- Initializing and configuring a virtual CT scanner (`gecatsim.CatSim`).
+- Running simulated scans (axial and helical).
+- Reconstructing CT images from projection data.
+- Generating scout views.
+- Calculating lesion masks in the image space.
 """
 
 from pathlib import Path
@@ -23,22 +32,36 @@ available_scanners = [o.name for o in install_path.glob('defaults/*')
                       if not str(o).endswith('.cfg')]
 
 
-def read_dicom(dcm_fname: str) -> np.ndarray:
+def read_dicom(dcm_fname: str | Path) -> np.ndarray:
     '''
-    Reads dicom file and returns numpy array
+    Reads a DICOM file and returns the pixel array adjusted by the RescaleIntercept.
 
-    :param dcm_fname: dicom filename to be read
+    Args:
+        dcm_fname (str | Path): The filename or path to the DICOM file to be read.
+
+    Returns:
+        np.ndarray: A NumPy array containing the pixel data in Hounsfield Units (HU).
     '''
-    dcm = pydicom.dcmread(dcm_fname)
+    dcm = pydicom.dcmread(str(dcm_fname))
     return dcm.pixel_array + int(dcm.RescaleIntercept)
 
 
-def convert_to_dicom(img_slice: np.ndarray, phantom_path: str,
-                     spacings: tuple):
+def convert_to_dicom(img_slice: np.ndarray, phantom_path: str | Path,
+                     spacings: tuple[float, float, float]):
     '''
-    :param img_slice: input 2D ndarray to be saved
-    :param phantom_path: filename to save dicom file to
-    :param spacings: tuple containing pixel spacings in mm
+    Converts a 2D NumPy array (image slice) into a DICOM file.
+
+    A template DICOM file ("CT_small.dcm") is used and modified with the
+    provided image data and metadata.
+
+    Args:
+        img_slice (np.ndarray): The input 2D NumPy array representing the image slice.
+                                Values are typically expected to be in HU.
+        phantom_path (str | Path): The filename or path where the DICOM file will be saved.
+        spacings (tuple[float, float, float]): A tuple containing pixel spacings in mm,
+                                               ordered as (slice_thickness, pixel_spacing_rows,
+                                               pixel_spacing_cols).
+                                               Example: (z_spacing, y_spacing, x_spacing)
     '''
     # https://github.com/DIDSR/pediatricIQphantoms/blob/main/src/pediatricIQphantoms/make_phantoms.py#L144
     Path(phantom_path).parent.mkdir(exist_ok=True, parents=True)
@@ -52,30 +75,89 @@ def convert_to_dicom(img_slice: np.ndarray, phantom_path: str,
     pydicom.dcmwrite(phantom_path, ds)
 
 
-def get_projection_data(ct):
-    '''takes as input xcist cfg struct and returns ndarray'''
-    return xc.rawread(ct.resultsName+'.prep',
+def get_projection_data(ct: xc.CatSim) -> np.ndarray:
+    '''
+    Reads raw projection data from the simulation results of a GECATSim object.
+
+    Args:
+        ct (xc.CatSim): The GECATSim simulation object after a scan has been run.
+                        It is expected that `ct.resultsName` is set and the
+                        corresponding '.prep' file exists.
+
+    Returns:
+        np.ndarray: A NumPy array containing the projection data.
+                    The shape is typically (viewCount, detectorRowCount, detectorColCount).
+    '''
+    prep_file = ct.resultsName + '.prep'
+    if not Path(prep_file).exists():
+        raise FileNotFoundError(f"Projection data file not found: {prep_file}. Ensure scan was run and resultsName is correct.")
+    return xc.rawread(prep_file,
                       [ct.protocol.viewCount,
                        ct.scanner.detectorRowCount,
                        ct.scanner.detectorColCount],
                       'float')
 
 
-def get_reconstructed_data(ct) -> np.ndarray:
-    '''takes as input xcist cfg struct and returns ndarray'''
+def get_reconstructed_data(ct: xc.CatSim) -> np.ndarray:
+    '''
+    Reads reconstructed image data from the simulation results of a GECATSim object.
+
+    Args:
+        ct (xc.CatSim): The GECATSim simulation object after reconstruction.
+                        It's expected that `ct.resultsName` and reconstruction parameters
+                        (imageSize, sliceCount) are set, and the corresponding '.raw'
+                        reconstruction file exists.
+
+    Returns:
+        np.ndarray: A NumPy array containing the reconstructed image volume.
+                    The shape is typically (sliceCount, imageSize, imageSize).
+    '''
     imsize = ct.recon.imageSize
+    recon_file = ct.resultsName + f'_{imsize}x{imsize}x{ct.recon.sliceCount}.raw'
+    if not Path(recon_file).exists():
+        raise FileNotFoundError(f"Reconstructed data file not found: {recon_file}. Ensure recon was run and parameters are correct.")
+
     return xc.rawread(
-        ct.resultsName+f'_{imsize}x{imsize}x{ct.recon.sliceCount}.raw',
+        recon_file,
         [ct.recon.sliceCount, imsize, imsize], 'single')
 
 
-def initialize_xcist(ground_truth_image, spacings=(1, 1, 1),
-                     scanner_model='Scanner_Default',
-                     output_dir='default', phantom_id='default',
-                     materials=None):
+def initialize_xcist(ground_truth_image: np.ndarray,
+                     spacings: tuple[float, float, float] = (1.0, 1.0, 1.0),
+                     scanner_model: str = 'Scanner_Default',
+                     output_dir: str | Path = 'default_xcist_output',
+                     phantom_id: str = 'default_phantom',
+                     materials: dict | None = None) -> xc.CatSim:
     '''
-    :param fov: in mm
-    :param spacings: z, x, y in mm
+    Initializes a GECATSim (xc.CatSim) object for CT simulation.
+
+    This involves:
+    1. Loading default configuration files for phantom, physics, protocol, recon, and scanner.
+    2. Setting up output directories.
+    3. Converting the input `ground_truth_image` (HU values) into DICOM slices.
+    4. Voxelizing these DICOM slices into a material-segmented phantom compatible with GECATSim,
+       using the provided `materials` dictionary for segmentation thresholds.
+
+    Args:
+        ground_truth_image (np.ndarray): A 3D NumPy array representing the phantom in HU.
+                                         Expected dimensions are (slices, rows, cols) or (z, y, x).
+        spacings (tuple[float, float, float], optional):
+            Voxel spacings in mm (slice_thickness, pixel_spacing_rows, pixel_spacing_cols).
+            Corresponds to (z_spacing, y_spacing, x_spacing). Defaults to (1.0, 1.0, 1.0).
+        scanner_model (str, optional): Name of the scanner configuration to load from
+                                       the 'defaults' directory. Defaults to 'Scanner_Default'.
+        output_dir (str | Path, optional): Base directory for simulation outputs.
+                                           Defaults to 'default_xcist_output'.
+        phantom_id (str, optional): Identifier for this phantom instance, used in filenames.
+                                    Defaults to 'default_phantom'.
+        materials (dict | None, optional):
+            A dictionary mapping material names (str) to their HU threshold values (int/float).
+            Used by `voxelize_ground_truth` to segment the HU image into material fractions.
+            Example: `{'air': -800, 'soft_tissue': -100, 'bone': 200}`.
+            If None, default thresholds in `voxelize_ground_truth` might be used.
+
+    Returns:
+        xc.CatSim: The initialized GECATSim simulation object.
     '''
     print('Initializing Scanner object...')
     print(''.join(10*['-']))
@@ -116,40 +198,60 @@ def initialize_xcist(ground_truth_image, spacings=(1, 1, 1),
 
 class Scanner():
     """
-    A class to hold CT simulation data and run simulations
+    A class to encapsulate CT simulation parameters, manage the GECATSim object,
+    and run various simulation tasks like scanning, reconstruction, and DICOM output.
+
+    Attributes:
+        phantom (Phantom): The phantom object to be scanned.
+        scanner_model (str): Name of the GECATSim scanner configuration.
+        output_dir (Path): Directory for all outputs related to this scanner instance.
+        xcist (xc.CatSim): The underlying GECATSim simulation object.
+        recon (np.ndarray | None): Stores the reconstructed image volume.
+        projections (np.ndarray | None): Stores the raw projection data.
+        start_positions (np.ndarray): Calculated start Z positions for axial scans.
+        total_scan_length (float): Total length of the phantom along the Z-axis.
+        pitch (float): Current pitch value for helical scans.
+        kVp (float): Current kVp value used for the scan.
+        tempdir (TemporaryDirectory | None): Handles temporary directory if output_dir is not specified.
     """
 
     kernels = ['standard', 'soft', 'bone', 'R-L', 'S-L']
 
     def __init__(self, phantom: Phantom, scanner_model: str = "Scanner_Default",
-                 studyname: str = "default",
-                 studyid: int = 0, seriesname: str = "default", seriesid=0,
-                 framework: str = 'CATSIM', output_dir: str | Path = None,
+                 studyname: str = "default_study",
+                 studyid: int = 0, seriesname: str = "default_series", seriesid: int = 0,
+                 framework: str = 'CATSIM', output_dir: str | Path | None = None,
                  materials: dict | None = None) -> None:
         """
-        :param phantom: Phantom class instance to be scanned, voxels in units of
-            approximate CT Numbers [HU], typically in python
-            coordinates (z, x, y)
-            where z is perpendicular to the axial plane made by x and y.
-            See <https://en.wikipedia.org/wiki/Hounsfield_scale>
-            for some suggested values for common materials
-        :param scanner_model: str, study identifier to be used for virtual identifier and DICOM header
-        :param studyname: str, study identifier to be saved in DICOM header
-        :param studyid: int, study identifier to be saved in DICOM header
-        :param seriesname: str, series identifier to be saved in DICOM header
-        :param seriesid: int, series identifier to be saved in DICOM header
-        :param output_dir: optional directory to save the intermediate and
-            final simulation results, defaults to current working directory
-        :param framework: Optional, CT simulation framework options
-            include `['CATSIM']`
-        :param materials: Optional dictionary of {material name: HU value},
-            used for construction volume fraction maps in XCIST,
-            see materials and thresholds from this XCIST example:
-            https://github.com/xcist/phantoms-voxelized/blob/main/DICOM_to_voxelized/DICOM_to_voxelized_example_head.cfg
+        Initializes the Scanner object.
 
-        :returns: None
+        Args:
+            phantom (Phantom): An instance of the `Phantom` class containing the image data
+                               (in HU) and metadata (spacings, patient info).
+            scanner_model (str, optional):
+                Name of the GECATSim scanner configuration to use (e.g., 'Scanner_Default').
+                These configurations are expected to be in `install_path / 'defaults'`.
+                Alternatively, a direct path to a scanner configuration directory can be provided.
+                Defaults to "Scanner_Default".
+            studyname (str, optional): Study identifier for DICOM metadata. Defaults to "default_study".
+            studyid (int, optional): Study ID for DICOM metadata. Defaults to 0.
+            seriesname (str, optional): Series identifier for DICOM metadata. Defaults to "default_series".
+            seriesid (int, optional): Series ID for DICOM metadata. Defaults to 0.
+            framework (str, optional): CT simulation framework. Currently only 'CATSIM' (GECATSim)
+                                       is supported. Defaults to 'CATSIM'.
+            output_dir (str | Path | None, optional):
+                Directory to save intermediate and final simulation results.
+                If None, a temporary directory will be created and used.
+                A subdirectory named after `phantom.patient_name` will be created within this.
+                Defaults to None.
+            materials (dict | None, optional):
+                Dictionary for material segmentation during phantom voxelization by `initialize_xcist`.
+                Example: `{'air': -800, 'soft_tissue': -100, 'bone': 200}`.
+                Defaults to None (which might use defaults in `voxelize_ground_truth`).
 
-        See also <https://github.com/DIDSR/pediatricIQphantoms/blob/main/src/pediatricIQphantoms/make_phantoms.py#L19>
+        Raises:
+            FileNotFoundError: If the specified `scanner_model` (as a name or path) is not found.
+            ValueError: If an unsupported `framework` is specified.
         """
         if output_dir is None:
             self.tempdir = TemporaryDirectory()
@@ -194,12 +296,36 @@ class Scanner():
         self.start_positions = self.calculate_start_positions()
 
     @property
-    def nominal_aperature(self):
+    def nominal_aperature(self) -> float:
+        """
+        Calculates the nominal collimated beam width (aperture) at the isocenter.
+
+        This is derived from the detector row size, detector row count,
+        and the system magnification (SDD/SID).
+
+        Returns:
+            float: The nominal aperture in mm.
+        """
         M = self.xcist.cfg.scanner.sdd/self.xcist.cfg.scanner.sid
         sliceThickness = self.xcist.cfg.scanner.detectorRowSize/M
         return sliceThickness*self.xcist.cfg.scanner.detectorRowCount
 
     def load_scanner_config(self, filename: str = 'Scanner_Default'):
+        """
+        Loads a specific scanner hardware configuration into the GECATSim object.
+
+        Args:
+            filename (str | Path):
+                The name of a scanner configuration directory within `install_path / 'defaults'`
+                (e.g., 'Scanner_Default'), or a direct path to a scanner configuration directory.
+                This directory should contain the `Scanner_*.cfg` file.
+
+        Returns:
+            Scanner: The Scanner instance itself, allowing for method chaining.
+
+        Raises:
+            FileNotFoundError: If the specified scanner configuration is not found.
+        """
         if filename in available_scanners:
             filename = install_path / 'defaults' / filename
         cfg = xc.source_cfg(filename)
@@ -208,7 +334,23 @@ class Scanner():
         return self
 
     def calculate_start_positions(self, startZ=None, endZ=None):
-        'determine number of axial scans required to cover the phantom'
+        '''
+        Determines the Z-axis start positions for a series of axial scans
+        required to cover a specified portion of the phantom.
+
+        The scan range is bounded by the phantom's total Z-length.
+
+        Args:
+            startZ (float | None, optional):
+                Desired starting Z position (in mm) of the scan coverage, relative to phantom center (0).
+                If None, defaults to the negative half of the total scan length.
+            endZ (float | None, optional):
+                Desired ending Z position (in mm) of the scan coverage, relative to phantom center (0).
+                If None, defaults to the positive half of the total scan length.
+
+        Returns:
+            np.ndarray: An array of Z positions (in mm) where each axial scan acquisition should start.
+        '''
         if startZ is None:
             startZ = -self.total_scan_length/2
         else:
@@ -221,10 +363,18 @@ class Scanner():
 
     def recommend_scan_range(self, threshold=-950) -> tuple:
         '''
-        returns recommended startZ and endZ based on scout scan
-        attenuation profile
+        Recommends a scan range (startZ, endZ) based on a scout view attenuation profile.
 
-        threshold [HU] determines minimum attenuating regions to keep
+        It analyzes the mean attenuation along the Z-axis of the phantom's CT number image
+        to find the extent of attenuating material above a given HU threshold.
+
+        Args:
+            threshold (float, optional):
+                The Hounsfield Unit (HU) threshold used to distinguish attenuating material
+                (e.g., tissue) from air-like regions. Defaults to -950 HU.
+
+        Returns:
+            tuple[float, float]: Recommended (startZ, endZ) in mm.
         '''
         img = self.phantom.get_CT_number_phantom()
         scout_profile = img.mean(axis=(1, 2))
@@ -246,8 +396,29 @@ class Scanner():
                         endZ: int | None = None,
                         fov: float | None = None,
                         slice_thickness=1, **kwargs) -> np.ndarray[bool]:
-        '''takes lesion in object space and returns a mask in CT image space
-        for the given imaging system'''
+        '''
+        Generates a binary mask of lesions in the CT image space.
+
+        This is done by:
+        1. Creating a temporary phantom containing only the lesion (lesion as 0 HU, background as -1000 HU).
+        2. Simulating a noiseless, artifact-free scan and reconstruction of this lesion-only phantom.
+        3. Thresholding the resulting lesion-only image to create a mask.
+        4. Optionally, combining this with a mask of the body from the main reconstruction
+           to ensure the lesion mask is within the body.
+
+        Args:
+            startZ (float | None, optional): Start Z position for the lesion scan. Defaults to current scan range.
+            endZ (float | None, optional): End Z position for the lesion scan. Defaults to current scan range.
+            fov (float | None, optional): Field of View for lesion reconstruction. Defaults to current FOV.
+            slice_thickness (float, optional): Slice thickness for lesion reconstruction. Defaults to 1.0 mm.
+            **kwargs: Additional arguments passed to the temporary Scanner's `run_scan` and `run_recon`.
+
+        Returns:
+            np.ndarray | None: A 3D boolean NumPy array representing the lesion mask in the
+                               dimensions of the main reconstruction. Returns None if the
+                               original phantom has no lesion defined or if reconstruction
+                               has not been performed.
+        '''
         if not self.phantom._lesion:
             return
         ground_truth_lesion = self.phantom._lesion[0]
@@ -273,11 +444,20 @@ class Scanner():
 
     def scout_view(self, startZ=None, endZ=None, pitch=0):
         '''
-        Preview radiograph useful for determining scan range startZ and endZ
-        :param startZ: optional starting table position in mm of the scan,
-            see self.start_positions
-        :param endZ: optional last position of scan in mm,
-            see self.start_positions
+        Displays a simulated scout radiograph (summation along one axis) of the phantom,
+        overlaid with indicators for the current scan range (startZ, endZ) and
+        the number of axial scans or table speed for helical scans.
+
+        Args:
+            startZ (float | None, optional):
+                Starting Z position for the scan range overlay.
+                If None, uses the first position from `self.calculate_start_positions()`.
+            endZ (float | None, optional):
+                Ending Z position for the scan range overlay.
+                If None, uses the last position from `self.calculate_start_positions()`.
+            pitch (float, optional):
+                Pitch value to calculate table speed for helical scan indication.
+                Defaults to 0.0 (axial).
         '''
         start_positions = self.calculate_start_positions(startZ, endZ)
         img = self.phantom.get_CT_number_phantom()
@@ -388,6 +568,7 @@ class Scanner():
         self.xcist.resultsName = proj_file
         startZ = self.start_positions[0] if startZ is None else startZ
         endZ = self.start_positions[-1] if endZ is None else endZ
+        self.ScanCoverage = (startZ, endZ)
         if pitch == 0:  # axial case
             self._projections = self.axial_scan(startZ, endZ)
         else:  # helical

@@ -20,7 +20,7 @@ import pandas as pd
 import numpy as np
 import pluggy
 
-from .scanner import Scanner
+from .scanner import Scanner, load_vol
 from .phantom import Phantom
 from . import hooks
 
@@ -69,7 +69,7 @@ class Study:
 
         Args:
             input_csv (pd.DataFrame | str | None, optional): 
-                Path to a CSV file or a pandas DataFrame containing study metadata. 
+                Path to a CSV file or a pandas DataFrame containing study metadata.
                 If None, an empty study is initialized. Defaults to None.
         '''
         self.metadata = pd.DataFrame()
@@ -131,53 +131,62 @@ Results:\n
                                     RemoveRawData: bool = True,
                                     Seed: int | None = None):
         '''
-        Generates study metadata by sampling parameters from specified distributions.
+        Generates study metadata by sampling parameters from distributions.
 
-        For each of `StudyCount` cases, parameters like phantom type, scanner model,
+        For each of `StudyCount` cases, parameters like phantom type, scanner,
         kVp, mA, etc., are chosen randomly from the provided lists. This method
         allows for the creation of diverse datasets for simulation.
 
         Args:
             Phantoms (list[str]): List of phantom names to choose from.
-            StudyCount (int, optional): Number of scan configurations to generate. 
-                                        Defaults to 1.
-            OutputDirectory (str | Path, optional): Base directory for output. 
-                                                   Individual case directories will be 
-                                                   created under this path. 
+            StudyCount (int, optional): Number of scan configurations to
+                                        generate. Defaults to 1.
+            OutputDirectory (str | Path, optional): Base directory for output.
+                                                   Individual case directories
+                                                   will be created under this
+                                                   path.
                                                    Defaults to 'results'.
-            Views (list[int], optional): List of view counts for projection data. 
+            Views (list[int], optional): List of view counts for projection
+                                         data.
                                          Defaults to [1000].
-            ScanCoverage (str | list | tuple, optional): 
-                Scan coverage specification. Can be 'dynamic' (to auto-determine) 
-                or a list/tuple of [start_z, end_z]. Defaults to 'dynamic'.
-            ScannerModel (list[str], optional): List of scanner model names. 
+            ScanCoverage (str | list | tuple, optional):
+                Scan coverage specification. Can be 'dynamic'
+                (to auto-determine) or a list/tuple of [start_z, end_z].
+                Defaults to 'dynamic'.
+            ScannerModel (list[str], optional): List of scanner model names.
                                                 Defaults to ['Scanner_Default'].
-            kVp (list[int], optional): List of kilovolt peak values. Defaults to [120].
-            mA (list[int], optional): List of milliampere values. Defaults to [300].
-            Pitch (list[float], optional): List of pitch values. Defaults to [0].
-            ReconKernel (list[str], optional): List of reconstruction kernel names. 
+            kVp (list[int], optional): List of kilovolt peak values.
+                                       Defaults to [120].
+            mA (list[int], optional): List of milliampere values.
+                                      Defaults to [300].
+            Pitch (list[float], optional): List of pitch values.
+                                           Defaults to [0].
+            ReconKernel (list[str], optional): List of recon kernel names.
                                               Defaults to ['soft'].
-            SliceThickness (list[int], optional): List of slice thicknesses in mm. 
+            SliceThickness (list[int], optional): List slice thicknesses in mm.
                                                  Defaults to [1].
-            SliceIncrement (list[int], optional): List of slice increments in mm. 
+            SliceIncrement (list[int], optional): List slice increments in mm.
                                                  Defaults to [1].
-            FOV (list[float], optional): List of Field of View values in mm. 
+            FOV (list[float], optional): List of Field of View values in mm.
                                         Defaults to [250].
-            RemoveRawData (bool, optional): Whether to remove raw projection data 
-                                            after reconstruction. Defaults to True.
-            Seed (int | None, optional): 
-                Seed for the random number generator. If None or False, a random seed 
-                is used. If an integer, that seed is used. Defaults to None.
+            RemoveRawData (bool, optional): Whether to remove raw projection data
+                                            after reconstruction.
+                                            Defaults to True.
+            Seed (int | None, optional):
+                Seed for the random number generator. If None or False,
+                a random seed is used. If an integer, that seed is used.
+                Defaults to None.
 
         Returns:
-            pd.DataFrame: A DataFrame containing the generated study parameters, 
-                          one row per scan.
+            pd.DataFrame: A DataFrame containing the generated study
+                          parameters, one row per scan.
 
         Raises:
             ValueError: If `Seed` is a float or True.
         '''
         OutputDirectory = Path(OutputDirectory)
-        assert (ScanCoverage == 'dynamic') or isinstance(ScanCoverage, list | tuple)
+        assert (ScanCoverage == 'dynamic') or isinstance(ScanCoverage,
+                                                         list | tuple)
         if isinstance(ScanCoverage, list):
             if len(ScanCoverage) < 2:
                 ScanCoverage = ScanCoverage[0].split(' ')
@@ -190,10 +199,13 @@ Results:\n
         mA_list = mA if isinstance(mA, list | tuple) else [mA]
         pitch_list = Pitch if isinstance(Pitch, list | tuple) else [Pitch]
         view_list = Views if isinstance(Views, list | tuple) else [Views]
-        slice_thickness_list = SliceThickness if isinstance(SliceThickness, list | tuple) else [SliceThickness]
-        slice_increment_list = SliceIncrement if isinstance(SliceIncrement, list | tuple) else [SliceIncrement]
+        slice_thickness_list = SliceThickness if\
+            isinstance(SliceThickness, list | tuple) else [SliceThickness]
+        slice_increment_list = SliceIncrement if\
+            isinstance(SliceIncrement, list | tuple) else [SliceIncrement]
         FOV_list = FOV if isinstance(FOV, list | tuple) else [FOV]
-        kernel_list = ReconKernel if isinstance(ReconKernel, list | tuple) else [ReconKernel]
+        kernel_list = ReconKernel if isinstance(ReconKernel, list | tuple)\
+            else [ReconKernel]
 
         if isinstance(Seed, float):
             raise ValueError('Seed cannot be float, set to False or integer')
@@ -244,7 +256,7 @@ Results:\n
             params['FOV'].append(random.choice(FOV_list))
             params['GlobalSeed'].append(global_seed)
             params['CaseSeed'].append(random.integers(0, 1e6))
-            params['OutputDirectory'].append(OutputDirectory / casestr)
+            params['OutputDirectory'].append(OutputDirectory.absolute() / casestr)
             params['RemoveRawData'].append(RemoveRawData)
         return pd.DataFrame(params)
 
@@ -326,7 +338,7 @@ Results:\n
             'CaseID' in self.metadata else 0
         casestr = f'case_{caseid:04d}'
         series['CaseID'] = casestr
-        series['OutputDirectory'] = [Path(OutputDirectory) / casestr]
+        series['OutputDirectory'] = [Path(OutputDirectory).absolute() / casestr]
         self.metadata = pd.concat([self.metadata, series], ignore_index=True)
         return self
 
@@ -335,11 +347,11 @@ Results:\n
         Collects and returns metadata from all completed scans in the study.
 
         It searches for 'metadata_*.csv' files within the output directories specified
-        in the study's metadata. These files are assumed to contain results from
-        individual scan simulations.
+        in the study's metadata. These files are assumed to contain results
+        from individual scan simulations.
 
         Returns:
-            pd.DataFrame | list: 
+            pd.DataFrame | list:
                 A pandas DataFrame concatenating all found metadata CSV files.
                 Returns an empty list if no result files are found.
         '''
@@ -367,13 +379,13 @@ Results:\n
         It monitors the progress of parallel jobs and waits for their completion.
 
         Args:
-            parallel (bool, optional): 
-                If True, attempts to run scans in parallel using a batch system.
+            parallel (bool, optional):
+                If True, attempts to run scans in parallel using batch system.
                 If False or if the batch system is not found, runs serially.
                 Defaults to True.
 
         Returns:
-            Study: The Study instance itself, after all scans have been processed.
+            Study: The Study instance itself, after all scans have processed.
         '''
         self.clear_previous_results()
         patientids = list(range(len(self.metadata)))
@@ -413,16 +425,20 @@ Results:\n
                                index=False)
                 if series.RemoveRawData:
                     rmtree(OutputDirectory / series.Phantom)
-                    [os.remove(o) for o in Path('.').rglob('VIT-BATCH*') if o.is_file()]
+                    [os.remove(o) for o in Path('.').rglob('VIT-BATCH*') if
+                     o.is_file()]
 
         output_df = self.get_scans_completed()
         scans_queued = len(patientids)
         scans_completed = len(self.get_scans_completed())
-        with tqdm(total=scans_queued, desc='Scans completed in parallel') as pbar:
+        with tqdm(total=scans_queued,
+                  desc='Scans completed in parallel') as pbar:
             while scans_completed < scans_queued:
                 sleep(1)
                 if len(self.get_scans_completed()) > scans_completed:
-                    pbar.update(len(self.get_scans_completed()) - scans_completed)
+                    pbar.update(
+                        len(self.get_scans_completed()) - scans_completed
+                        )
                     output_df = self.get_scans_completed()
                     scans_completed = len(output_df)
         return self
@@ -440,8 +456,8 @@ Results:\n
         '''
         Runs a single simulation study for a specific patient/case ID.
 
-        This method orchestrates the simulation for one entry in the `self.metadata`
-        DataFrame. It involves:
+        This method orchestrates the simulation for one entry in the
+        `self.metadata` DataFrame. It involves:
         1. Initializing the specified phantom.
         2. Setting up the virtual scanner.
         3. Determining the scan range (z-axis coverage).
@@ -452,8 +468,8 @@ Results:\n
         8. Optionally, removing raw projection data.
 
         Args:
-            patientid (int, optional): 
-                The index of the scan configuration in `self.metadata` to run. 
+            patientid (int, optional):
+                The index of the scan configuration in `self.metadata` to run.
                 Defaults to 0 (the first scan).
 
         Returns:
@@ -491,37 +507,47 @@ Results:\n
         OutputDirectory = series.OutputDirectory or self.scanner.output_dir
         OutputDirectory = Path(OutputDirectory)
         dicom_path = OutputDirectory / 'dicoms'
-        dcm_files = self.scanner.write_to_dicom(dicom_path / f'{patient_name}.dcm')
+        dcm_files = self.scanner.write_to_dicom(dicom_path /
+                                                f'{patient_name}.dcm')
         nslices = len(dcm_files)
-        results = pd.DataFrame({'CaseID': nslices*[series.CaseID],
-                                'Name': nslices*[patient_name],
-                                'Age': nslices*[age],
-                                'kVp': nslices*[series.kVp],
-                                'mA': nslices*[series.mA],
-                                'Pitch': nslices*[series.Pitch],
-                                'Views': nslices*[series.Views],
-                                'ReconKernel': nslices*[series.ReconKernel],
-                                'SliceThickness': nslices*[series.SliceThickness],
-                                'SliceIncrement': nslices*[series.SliceIncrement],
-                                'FOV': nslices*[series.FOV],
-                                'ImageFilePath': dcm_files})
+        results = pd.DataFrame(
+            {'CaseID': nslices*[series.CaseID],
+             'Name': nslices*[patient_name],
+             'Age': nslices*[age],
+             'kVp': nslices*[series.kVp],
+             'mA': nslices*[series.mA],
+             'Pitch': nslices*[series.Pitch],
+             'Views': nslices*[series.Views],
+             'ScannerModel': nslices*[series.ScannerModel],
+             'ReconKernel': nslices*[series.ReconKernel],
+             'SliceThickness': nslices*[series.SliceThickness],
+             'SliceIncrement': nslices*[series.SliceIncrement],
+             'FOV': nslices*[series.FOV],
+             'CaseSeed': nslices*[series.CaseSeed],
+             'ImageFilePath': dcm_files}
+             )
         return results
+
+    def get_images(self, patientid: int = 0):
+        return load_vol(self.results[self.results.CaseID ==
+                                     f'case_{patientid:04d}']['ImageFilePath'])
 
 
 def vit_cli(arg_list: list[str] | None = None):
     '''
-    Command-line interface for running Virtual Imaging Tools (VITools) simulations.
+    Command-line interface for Virtual Imaging Tools (VITools) simulations.
 
-    Parses command-line arguments to specify an input CSV file for study parameters
-    and an option to run simulations in parallel. If no input CSV is provided via
-    arguments, it attempts to read from stdin.
+    Parses command-line arguments to specify an input CSV file for study
+    parameters and an option to run simulations in parallel. If no input CSV
+    is provided via arguments, it attempts to read from stdin.
 
-    The input CSV can define a study to be run. This function initializes a `Study`
-    object with this CSV and then calls its `run_all` method.
+    The input CSV can define a study to be run. This function initializes a
+    `Study` object with this CSV and then calls its `run_all` method.
 
     Args:
-        arg_list (list[str] | None, optional): 
-            A list of command-line arguments to parse. If None, `sys.argv[1:]` is used.
+        arg_list (list[str] | None, optional):
+            A list of command-line arguments to parse. If None, `sys.argv[1:]`
+            is used.
             Defaults to None.
     '''
     parser = ArgumentParser(

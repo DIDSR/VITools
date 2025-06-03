@@ -46,6 +46,10 @@ def read_dicom(dcm_fname: str | Path) -> np.ndarray:
     return dcm.pixel_array + int(dcm.RescaleIntercept)
 
 
+def load_vol(file_list):
+    return np.stack(list(map(read_dicom, file_list)))
+
+
 def convert_to_dicom(img_slice: np.ndarray, phantom_path: str | Path,
                      spacings: tuple[float, float, float]):
     '''

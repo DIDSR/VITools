@@ -21,7 +21,8 @@ sys.path.insert(0, Path(__file__).parents[2])
 extensions = ['sphinx.ext.autodoc',
               'sphinx.ext.duration',
               'sphinx.ext.doctest',
-              'sphinx.ext.autosummary']
+              'sphinx.ext.autosummary',
+              'sphinx.ext.napoleon']
 
 templates_path = ['_templates']
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']

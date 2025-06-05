@@ -407,15 +407,15 @@ class Scanner():
         1. Creating a temporary phantom containing only the lesion (lesion as 0 HU, background as -1000 HU).
         2. Simulating a noiseless, artifact-free scan and reconstruction of this lesion-only phantom.
         3. Thresholding the resulting lesion-only image to create a mask.
-        4. Optionally, combining this with a mask of the body from the main reconstruction
-           to ensure the lesion mask is within the body.
+        4. Optionally, combining this with a mask of the body from the main
+        reconstruction to ensure the lesion mask is within the body.
 
         Args:
             startZ (float | None, optional): Start Z position for the lesion scan. Defaults to current scan range.
             endZ (float | None, optional): End Z position for the lesion scan. Defaults to current scan range.
             fov (float | None, optional): Field of View for lesion reconstruction. Defaults to current FOV.
             slice_thickness (float, optional): Slice thickness for lesion reconstruction. Defaults to 1.0 mm.
-            **kwargs: Additional arguments passed to the temporary Scanner's `run_scan` and `run_recon`.
+            kwargs: Additional arguments passed to the temporary Scanner's `run_scan` and `run_recon`.
 
         Returns:
             np.ndarray | None: A 3D boolean NumPy array representing the lesion mask in the
@@ -632,11 +632,11 @@ class Scanner():
                   mu_water=None, kernel='standard'):
         '''
         perform reconstruction and save to .recon attribute
-        :param kernel: reconstruction kernel, options include: ['standard',
-            'soft', 'bone', 'R-L', 'S-L']
-            'R-L': Ramachandran-Lakshminarayanan (R-L) filter
+
+        :param kernel: reconstruction kernel, options include: ['standard', 'soft', 'bone', 'R-L', 'S-L']
+            'R-L' for Ramachandran-Lakshminarayanan (R-L) filter
             'S-L' for Shepp-Logan (S-L) filter
-            See: https://github.com/xcist/main/blob/master/gecatsim/cfg/Recon_Default.cfg
+            See https://github.com/xcist/main/blob/master/gecatsim/cfg/Recon_Default.cfg
         :param sliceThickness: float, thickness in mm of slice nominal width of reconstructed image along the z axis
         :param sliceIncrement: float, Distance [mm] between two consecutive reconstructed images
 

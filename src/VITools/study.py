@@ -94,7 +94,7 @@ Results:\n
         Loads study metadata from a CSV file or a pandas DataFrame.
 
         Args:
-            input_csv (str | Path | pd.DataFrame): 
+            input_csv (str | Path | pd.DataFrame):
                 The path to a CSV file or a pandas DataFrame containing the study parameters.
                 The loaded data replaces any existing metadata in the `self.metadata` attribute.
         '''
@@ -133,56 +133,43 @@ Results:\n
         '''
         Generates study metadata by sampling parameters from distributions.
 
-        For each of `StudyCount` cases, parameters like phantom type, scanner,
+        For each of ``StudyCount`` cases, parameters like phantom type, scanner,
         kVp, mA, etc., are chosen randomly from the provided lists. This method
         allows for the creation of diverse datasets for simulation.
 
-        Args:
-            Phantoms (list[str]): List of phantom names to choose from.
-            StudyCount (int, optional): Number of scan configurations to
-                                        generate. Defaults to 1.
-            OutputDirectory (str | Path, optional): Base directory for output.
-                                                   Individual case directories
-                                                   will be created under this
-                                                   path.
-                                                   Defaults to 'results'.
-            Views (list[int], optional): List of view counts for projection
-                                         data.
-                                         Defaults to [1000].
-            ScanCoverage (str | list | tuple, optional):
-                Scan coverage specification. Can be 'dynamic'
-                (to auto-determine) or a list/tuple of [start_z, end_z].
-                Defaults to 'dynamic'.
-            ScannerModel (list[str], optional): List of scanner model names.
-                                                Defaults to ['Scanner_Default'].
-            kVp (list[int], optional): List of kilovolt peak values.
-                                       Defaults to [120].
-            mA (list[int], optional): List of milliampere values.
-                                      Defaults to [300].
-            Pitch (list[float], optional): List of pitch values.
-                                           Defaults to [0].
-            ReconKernel (list[str], optional): List of recon kernel names.
-                                              Defaults to ['soft'].
-            SliceThickness (list[int], optional): List slice thicknesses in mm.
-                                                 Defaults to [1].
-            SliceIncrement (list[int], optional): List slice increments in mm.
-                                                 Defaults to [1].
-            FOV (list[float], optional): List of Field of View values in mm.
-                                        Defaults to [250].
-            RemoveRawData (bool, optional): Whether to remove raw projection data
-                                            after reconstruction.
-                                            Defaults to True.
-            Seed (int | None, optional):
-                Seed for the random number generator. If None or False,
-                a random seed is used. If an integer, that seed is used.
-                Defaults to None.
-
-        Returns:
-            pd.DataFrame: A DataFrame containing the generated study
-                          parameters, one row per scan.
-
-        Raises:
-            ValueError: If `Seed` is a float or True.
+        :param Phantoms: List of phantom names to choose from.
+        :type Phantoms: list[str]
+        :param StudyCount: Number of scan configurations to generate.
+        :type StudyCount: int, optional
+        :param OutputDirectory: Base directory for output. Individual case directories will be created under this path.
+        :type OutputDirectory: str | Path, optional
+        :param Views: List of view counts for projection data.
+        :type Views: list[int], optional
+        :param ScanCoverage: Scan coverage specification. Can be 'dynamic' (to auto-determine) or a list/tuple of [start_z, end_z].
+        :type ScanCoverage: str | list | tuple, optional
+        :param ScannerModel: List of scanner model names.
+        :type ScannerModel: list[str], optional
+        :param kVp: List of kilovolt peak values.
+        :type kVp: list[int], optional
+        :param mA: List of milliampere values.
+        :type mA: list[int], optional
+        :param Pitch: List of pitch values.
+        :type Pitch: list[float], optional
+        :param ReconKernel: List of recon kernel names.
+        :type ReconKernel: list[str], optional
+        :param SliceThickness: List slice thicknesses in mm.
+        :type SliceThickness: list[int], optional
+        :param SliceIncrement: List slice increments in mm.
+        :type SliceIncrement: list[int], optional
+        :param FOV: List of Field of View values in mm.
+        :type FOV: list[float], optional
+        :param RemoveRawData: Whether to remove raw projection data after reconstruction.
+        :type RemoveRawData: bool, optional
+        :param Seed: Seed for the random number generator. If None or False, a random seed is used. If an integer, that seed is used.
+        :type Seed: int | None, optional
+        :returns: A DataFrame containing the generated study parameters, one row per scan.
+        :rtype: pd.DataFrame
+        :raises ValueError: If ``Seed`` is a float or True.
         '''
         OutputDirectory = Path(OutputDirectory)
         assert (ScanCoverage == 'dynamic') or isinstance(ScanCoverage,
@@ -260,7 +247,7 @@ Results:\n
             params['RemoveRawData'].append(RemoveRawData)
         return pd.DataFrame(params)
 
-    def append(self, Phantom,
+    def append(self, Phantom: str | pd.DataFrame,
                OutputDirectory: str | Path = 'results',
                ScannerModel: str = 'Scanner_Default',
                kVp: int = 120, mA: int = 200, Pitch: float = 0,
@@ -278,34 +265,29 @@ Results:\n
         Otherwise, a new scan configuration is created using the provided parameters
         and added to the metadata.
 
-        Args:
-            Phantom (str | pd.DataFrame): 
-                The name of the phantom to use (must be an available phantom type)
-                or a pandas DataFrame containing scan parameters to append.
-            OutputDirectory (str | Path, optional): Base directory for output. 
-                                                   Defaults to 'results'.
-            ScannerModel (str, optional): Scanner model name. Defaults to 'Scanner_Default'.
-            kVp (int, optional): Kilovolt peak value. Defaults to 120.
-            mA (int, optional): Milliampere value. Defaults to 200.
-            Pitch (float, optional): Pitch value. Defaults to 0.
-            Views (int, optional): Number of views for projection. Defaults to 1000.
-            FOV (float, optional): Field of View in mm. Defaults to 250.
-            ScanCoverage (tuple[float,...] | str, optional): 
-                Scan coverage. Can be 'dynamic' or a tuple (start_z, end_z). 
-                Defaults to 'dynamic'.
-            ReconKernel (str, optional): Reconstruction kernel name. Defaults to 'standard'.
-            SliceThickness (int | None, optional): Slice thickness in mm. Defaults to 1.
-            SliceIncrement (int | None, optional): Slice increment in mm. 
-                                                  Defaults to `SliceThickness` if None.
-            Seed (int | None, optional):
-                Seed for the random number generator. If None or False, a random seed 
-                is used. If an integer, that seed is used. Defaults to None.
-            RemoveRawData (bool, optional): Whether to remove raw data after reconstruction. 
-                                            Defaults to True.
-            **kwargs: Additional keyword arguments (currently unused).
+        :param Phantom: (str | pd.DataFrame), The name of the phantom to use (must be an available phantom type)
+            or a pandas DataFrame containing scan parameters to append.
+        :param OutputDirectory: (str | Path, optional) Base directory for output.
+            Defaults to 'results'.
+        :param ScannerModel: (str, optional), Scanner model name.
+            Defaults to 'Scanner_Default'.
+        :param kVp: (int, optional), Kilovolt peak value.
+            Defaults to 120.
+        :param mA: (int, optional), Milliampere value. Defaults to 200.
+        :param Pitch: (float, optional), Pitch value. Defaults to 0.
+        :param Views: (int, optional) Number of views for projection. Defaults to 1000.
+        :param FOV: (float, optional), Field of View in mm. Defaults to 250.
+        :param ScanCoverage: (tuple[float,...] | str, optional), Scan coverage. Can be 'dynamic' or a tuple (start_z, end_z). Defaults to 'dynamic'.
+        :param ReconKernel: (str, optional), Reconstruction kernel name. Defaults to 'standard'.
+        :param SliceThickness: (int | None, optional), Slice thickness in mm. Defaults to 1.
+        :param SliceIncrement: (int | None, optional), Slice increment in mm. Defaults to `SliceThickness` if None.
+        :param Seed: (int | None, optional), Seed for the random number generator.
+            If None or False, a random seed is used. If an integer,
+            that seed is used. Defaults to None.
+        :param RemoveRawData: (bool, optional), Whether to remove raw data after
+            reconstruction. Defaults to True.
 
-        Returns:
-            Study: The Study instance itself, allowing for method chaining.
+        :return: Study, The Study instance itself, allowing for method chaining.
 
         Raises:
             KeyError: If the specified `Phantom` name is not an available phantom type.

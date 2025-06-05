@@ -27,3 +27,4 @@ src/VITools.egg-info
 *-BATCH_*
 logs
 core*
+docs/_build

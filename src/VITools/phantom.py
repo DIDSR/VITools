@@ -6,11 +6,9 @@ from pathlib import Path
 
 import numpy as np
 from monai.transforms import Resize
+import gecatsim as xc
 
 from . import dicom_to_voxelized_phantom
-
-
-import gecatsim as xc
 
 
 def resize(phantom, shape, **kwargs):

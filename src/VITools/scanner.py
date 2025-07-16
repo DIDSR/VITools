@@ -423,11 +423,11 @@ class Scanner():
                                original phantom has no lesion defined or if reconstruction
                                has not been performed.
         '''
-        if not self.phantom._lesion:
+        if not self.phantom.lesions:
             return
-        ground_truth_lesion = self.phantom._lesion[0]
+        ground_truth_lesion = self.phantom.lesions[0]
         lesion_phantom = deepcopy(self.phantom)
-        lesion_phantom._phantom = np.where(ground_truth_lesion > 0, 0, - 1000)
+        lesion_phantom._phantom = np.where(ground_truth_lesion.mask > 0, 0, - 1000)
         lesion_phantom.patient_name = 'lesion only'
         lesion_dir = self.output_dir / 'lesion_mask'
         lesion_only = Scanner(lesion_phantom,

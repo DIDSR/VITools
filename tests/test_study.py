@@ -5,10 +5,10 @@ test_dir = Path(__file__).parent.absolute()
 
 
 def test_study():
-    input_df = Study.generate_from_distributions(Phantoms=get_available_phantoms(),
-                                                 StudyCount=2,
-                                                 Views=[20],
-                                                 ScanCoverage=(0, 7))
+    input_df = Study.generate_from_distributions(phantoms=get_available_phantoms(),
+                                                 study_count=2,
+                                                 views=[20],
+                                                 scan_coverage=(0, 7))
     study1 = Study(input_df)
     study1.run_all(parallel=False)
     results1 = study1.results

@@ -95,14 +95,15 @@ class Phantom:
         return self.dz, self.dx, self.dy
 
     @property
-    def shape(self) -> list:
+    def shape(self) -> tuple:
         '''Returns the shape of the phantom array'''
-        return list(self._phantom.shape)
+        return self.get_CT_number_phantom().shape
 
     @property
     def size(self) -> np.ndarray:
         '''Returns the size of the phantom array (mm)'''
-        return np.array(self.spacings) * self.shape
+        return tuple(map(lambda o: float(round(o, ndigits=2)),
+                         np.array(self.spacings) * list(self.shape)))
 
     def resize(self, shape: tuple, **kwargs) -> None:
         '''

@@ -311,8 +311,8 @@ class Scanner():
             float: The nominal aperture in mm.
         """
         M = self.xcist.cfg.scanner.sdd/self.xcist.cfg.scanner.sid
-        sliceThickness = self.xcist.cfg.scanner.detectorRowSize/M
-        return sliceThickness*self.xcist.cfg.scanner.detectorRowCount
+        slice_thickness = self.xcist.cfg.scanner.detectorRowSize/M
+        return slice_thickness*self.xcist.cfg.scanner.detectorRowCount
 
     def load_scanner_config(self, filename: str = 'Scanner_Default'):
         """
@@ -423,11 +423,11 @@ class Scanner():
                                original phantom has no lesion defined or if reconstruction
                                has not been performed.
         '''
-        if not self.phantom._lesion:
+        if not self.phantom.lesions:
             return
-        ground_truth_lesion = self.phantom._lesion[0]
+        ground_truth_lesion = self.phantom.lesions[0]
         lesion_phantom = deepcopy(self.phantom)
-        lesion_phantom._phantom = np.where(ground_truth_lesion > 0, 0, - 1000)
+        lesion_phantom._phantom = np.where(ground_truth_lesion.mask > 0, 0, - 1000)
         lesion_phantom.patient_name = 'lesion only'
         lesion_dir = self.output_dir / 'lesion_mask'
         lesion_only = Scanner(lesion_phantom,
@@ -442,7 +442,7 @@ class Scanner():
         lesion_only.xcist.cfg.physics.enableQuantumNoise = 0
         lesion_only.run_scan(mA=500, views=100, startZ=startZ, endZ=endZ,
                              pitch=self.pitch)
-        lesion_only.run_recon(sliceThickness=slice_thickness, fov=fov)
+        lesion_only.run_recon(slice_thickness=slice_thickness, fov=fov)
         rmtree(lesion_dir)
         return (lesion_only.recon > -950) & (self.recon > -300)
 
@@ -628,7 +628,7 @@ class Scanner():
         projections = [self.xcist.cfg.resultsName]
         return projections
 
-    def run_recon(self, fov=None, sliceThickness=None, sliceIncrement=None,
+    def run_recon(self, fov=None, slice_thickness=None, slice_increment=None,
                   mu_water=None, kernel='standard'):
         '''
         perform reconstruction and save to .recon attribute
@@ -637,8 +637,8 @@ class Scanner():
             'R-L' for Ramachandran-Lakshminarayanan (R-L) filter
             'S-L' for Shepp-Logan (S-L) filter
             See https://github.com/xcist/main/blob/master/gecatsim/cfg/Recon_Default.cfg
-        :param sliceThickness: float, thickness in mm of slice nominal width of reconstructed image along the z axis
-        :param sliceIncrement: float, Distance [mm] between two consecutive reconstructed images
+        :param slice_thickness: float, thickness in mm of slice nominal width of reconstructed image along the z axis
+        :param slice_increment: float, Distance [mm] between two consecutive reconstructed images
 
         See https://www.aapm.org/pubs/ctprotocols/documents/ctterminologylexicon.pdf for further definitions of terms
         '''
@@ -648,10 +648,10 @@ class Scanner():
         else:
             self.xcist.cfg.recon.kernelType = kernel
 
-        sliceIncrement = sliceIncrement or sliceThickness
+        slice_increment = slice_increment or slice_thickness
 
-        if sliceIncrement:
-            self.xcist.recon.sliceThickness = sliceIncrement
+        if slice_increment:
+            self.xcist.recon.sliceThickness = slice_increment
             # XCIST is mislabeled, recon.sliceThickness gives slice increment
 
         if mu_water:
@@ -676,14 +676,14 @@ class Scanner():
         self.nsims = 1
 
         recons = []
-        sliceIncrement = int(sliceIncrement) if sliceIncrement else sliceThickness
-        sliceThickness = int(sliceThickness) if sliceThickness else sliceIncrement
-        if not (sliceIncrement or sliceThickness):
+        slice_increment = int(slice_increment) if slice_increment else slice_thickness
+        slice_thickness = int(slice_thickness) if slice_thickness else slice_increment
+        if not (slice_increment or slice_thickness):
             return self
         n_slices = len(self.recon)
-        starts = np.arange(0, n_slices, sliceIncrement, dtype=int)
+        starts = np.arange(0, n_slices, slice_increment, dtype=int)
         for slab_start in starts:
-            recons.append(self.recon[slab_start:slab_start+sliceThickness].mean(axis=0))
+            recons.append(self.recon[slab_start:slab_start+slice_thickness].mean(axis=0))
         self.recon = np.stack(recons)
 
         return self

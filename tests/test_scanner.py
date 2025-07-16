@@ -46,7 +46,7 @@ def scan_CTP404(test_dir, views=100, thickness=1, increment=1):
     phantom = Phantom(img, spacings=[dz, dx, dy])
     ct = Scanner(phantom, output_dir=result_dir)
     ct.run_scan(views=views)
-    ct.run_recon(sliceThickness=thickness, sliceIncrement=increment)
+    ct.run_recon(slice_thickness=thickness, slice_increment=increment)
     return ct
 
 
@@ -91,10 +91,10 @@ def test_recon_length():
     center = 0
     width = scanner.nominal_aperature
     scanner.run_scan(startZ=center-width//2, endZ=center+width//2, views=10)
-    scanner.run_recon(sliceThickness=1, sliceIncrement=1)
+    scanner.run_recon(slice_thickness=1, slice_increment=1)
     assert len(scanner.recon) == 7
 
     width = 2*scanner.nominal_aperature
     scanner.run_scan(startZ=center-width//2, endZ=center+width//2, views=10)
-    scanner.run_recon(sliceThickness=1, sliceIncrement=1)
+    scanner.run_recon(slice_thickness=1, slice_increment=1)
     assert len(scanner.recon) == 14

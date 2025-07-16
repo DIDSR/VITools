@@ -3,7 +3,7 @@
 
 notebooks/*/*.png
 build
-
+.vitools
 *.raw
 *.air
 *.offset
@@ -13,6 +13,7 @@ build
 *.scan
 *.json
 *.cfg
+*.csv
 *.zip
 notebooks/data
 __pycache__
@@ -21,4 +22,9 @@ __pycache__
 .vscode
 .pytest_cache
 src/VITools.egg-info
+.ipynb_checkpoints
+.env
+*-BATCH_*
+logs
+core*
 docs/_build

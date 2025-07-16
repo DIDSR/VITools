@@ -83,3 +83,18 @@ def test_load_custom_scanner():
     custom_scanner = test_dir / 'Scanner_Test'
     scanner = Scanner(phantom, custom_scanner)
     assert scanner.xcist.cfg.scanner.sid == 42
+
+
+def test_recon_length():
+    scanner = Scanner(phantom)
+
+    center = 0
+    width = scanner.nominal_aperature
+    scanner.run_scan(startZ=center-width//2, endZ=center+width//2, views=10)
+    scanner.run_recon(sliceThickness=1, sliceIncrement=1)
+    assert len(scanner.recon) == 7
+
+    width = 2*scanner.nominal_aperature
+    scanner.run_scan(startZ=center-width//2, endZ=center+width//2, views=10)
+    scanner.run_recon(sliceThickness=1, sliceIncrement=1)
+    assert len(scanner.recon) == 14

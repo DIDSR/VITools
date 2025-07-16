@@ -1,3 +1,3 @@
-from .phantoms import Phantom
-from .image_acquisition import Scanner, read_dicom, available_scanners
-from .pipeline import Study, get_available_phantoms
+from .phantom import Phantom
+from .scanner import Scanner, read_dicom, available_scanners, load_vol
+from .study import Study, get_available_phantoms

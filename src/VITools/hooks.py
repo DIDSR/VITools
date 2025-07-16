@@ -2,7 +2,7 @@
 
 import pluggy
 from typing import Dict  # For type hinting
-from .phantoms import Phantom
+from .phantom import Phantom
 
 PROJECT_NAME = "VITools"  # Choose a unique name for your plugin system
 hookspec = pluggy.HookspecMarker(PROJECT_NAME)

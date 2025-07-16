@@ -21,3 +21,4 @@ __pycache__
 .vscode
 .pytest_cache
 src/VITools.egg-info
+docs/_build

@@ -572,7 +572,7 @@ class Scanner():
         self.xcist.resultsName = proj_file
         startZ = self.start_positions[0] if startZ is None else startZ
         endZ = self.start_positions[-1] if endZ is None else endZ
-        self.ScanCoverage = (startZ, endZ)
+        self.scan_coverage = (startZ, endZ)
         if pitch == 0:  # axial case
             self._projections = self.axial_scan(startZ, endZ)
         else:  # helical

@@ -408,7 +408,7 @@ Results:\n
 
         output_df = self.get_scans_completed()
         scans_queued = len(patientids)
-        scans_completed = len(self.get_scans_completed())
+        scans_completed = len(np.unique(self.get_scans_completed()['case_id']))
         with tqdm(total=scans_queued,
                   desc='Scans completed in parallel') as pbar:
             while scans_completed < scans_queued:

@@ -14,7 +14,7 @@ exec 2>> $LOG_DIR/$LOGNAME
 
 echo "==== begin job $JOB_NAME ($SLURM_ARRAY_TASK_ID) at:" `date` "on host $HOSTNAME"
 
-source /home/brandon.nelson/Dev/VITools/.vitools/bin/activate
+source /home/brandon.nelson/Dev/VITools/.vitools/bin/activate # this should be user specific and not hard coded
 
 START_TIME=`date +%s`
 set -x

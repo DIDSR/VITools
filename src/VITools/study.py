@@ -10,7 +10,7 @@ import os
 import sys
 from pathlib import Path
 from tqdm import tqdm
-from shutil import rmtree
+import shutil
 from time import sleep
 import ast
 from subprocess import run
@@ -113,7 +113,7 @@ Results:\n
         for idx in range(len(self.metadata)):
             output_dir = Path(self.metadata.iloc[idx]['output_directory'])
             if output_dir.exists():
-                rmtree(output_dir)
+                shutil.rmtree(output_dir, ignore_errors=True)
 
     @staticmethod
     def generate_from_distributions(phantoms: list[str],
@@ -344,7 +344,7 @@ Results:\n
             if len(results_files) > 0:
                 scans_completed += 1
         if len(results_files) < 1:
-            return []
+            return pd.DataFrame()
         return pd.concat([pd.read_csv(o) for o in results_files],
                          ignore_index=True)
 
@@ -367,16 +367,9 @@ Results:\n
         '''
         self.clear_previous_results()
         patientids = list(range(len(self.metadata)))
-        returncode = True
-        if parallel:
-            try:
-                out = run(["qsub", "--help"])
-                returncode = out.returncode
-            except FileNotFoundError:
-                returncode = True
-        if returncode:
+        if parallel and not shutil.which("qsub"):
+            print("qsub not found, running in serial mode.")
             parallel = False
-            print('qsub not found, running in serial mode')
         else:
             output = Path(self.metadata.iloc[0]['output_directory']).parent
             output.mkdir(exist_ok=True, parents=True)
@@ -402,23 +395,23 @@ Results:\n
                 results.to_csv(output_directory / f'metadata_{patientid}.csv',
                                index=False)
                 if series.remove_raw:
-                    rmtree(output_directory / series.phantom)
+                    shutil.rmtree(output_directory / series.phantom)
                     [os.remove(o) for o in Path('.').rglob('VIT-BATCH*') if
                      o.is_file()]
 
         output_df = self.get_scans_completed()
         scans_queued = len(patientids)
-        scans_completed = len(np.unique(self.get_scans_completed()['case_id']))
-        with tqdm(total=scans_queued,
-                  desc='Scans completed in parallel') as pbar:
+        output_df = self.get_scans_completed()
+        scans_completed = len(np.unique(output_df.get('case_id', [])))
+        with tqdm(total=scans_queued, desc='Scans completed in parallel') as pbar:
             while scans_completed < scans_queued:
                 sleep(1)
-                if len(self.get_scans_completed()) > scans_completed:
+                output_df = self.get_scans_completed()
+                if len(np.unique(output_df.get('case_id', []))) > scans_completed:
                     pbar.update(
-                        len(self.get_scans_completed()) - scans_completed
+                        len(np.unique(output_df.get('case_id', []))) - scans_completed
                         )
-                    output_df = self.get_scans_completed()
-                    scans_completed = len(output_df)
+                    scans_completed = len(np.unique(output_df.get('case_id', [])))
         return self
 
     @property

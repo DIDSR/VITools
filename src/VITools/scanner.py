@@ -8,13 +8,11 @@ It provides functionalities for:
 - Running simulated scans (axial and helical).
 - Reconstructing CT images from projection data.
 - Generating scout views.
-- Calculating lesion masks in the image space.
 """
 
 from pathlib import Path
 from shutil import rmtree
 from datetime import datetime
-from copy import deepcopy
 from tempfile import TemporaryDirectory
 
 import numpy as np
@@ -396,56 +394,6 @@ class Scanner():
                 self.phantom.spacings[0]
         return (int(suggested_start_mm), int(suggested_end_mm))
 
-    def get_lesion_mask(self, startZ: int | None = None,
-                        endZ: int | None = None,
-                        fov: float | None = None,
-                        slice_thickness=1, **kwargs) -> np.ndarray[bool]:
-        '''
-        Generates a binary mask of lesions in the CT image space.
-
-        This is done by:
-        1. Creating a temporary phantom containing only the lesion (lesion as 0 HU, background as -1000 HU).
-        2. Simulating a noiseless, artifact-free scan and reconstruction of this lesion-only phantom.
-        3. Thresholding the resulting lesion-only image to create a mask.
-        4. Optionally, combining this with a mask of the body from the main
-        reconstruction to ensure the lesion mask is within the body.
-
-        Args:
-            startZ (float | None, optional): Start Z position for the lesion scan. Defaults to current scan range.
-            endZ (float | None, optional): End Z position for the lesion scan. Defaults to current scan range.
-            fov (float | None, optional): Field of View for lesion reconstruction. Defaults to current FOV.
-            slice_thickness (float, optional): Slice thickness for lesion reconstruction. Defaults to 1.0 mm.
-            kwargs: Additional arguments passed to the temporary Scanner's `run_scan` and `run_recon`.
-
-        Returns:
-            np.ndarray | None: A 3D boolean NumPy array representing the lesion mask in the
-                               dimensions of the main reconstruction. Returns None if the
-                               original phantom has no lesion defined or if reconstruction
-                               has not been performed.
-        '''
-        if not self.phantom.lesions:
-            return
-        ground_truth_lesion = self.phantom.lesions[0]
-        lesion_phantom = deepcopy(self.phantom)
-        lesion_phantom._phantom = np.where(ground_truth_lesion.mask > 0, 0, - 1000)
-        lesion_phantom.patient_name = 'lesion only'
-        lesion_dir = self.output_dir / 'lesion_mask'
-        lesion_only = Scanner(lesion_phantom,
-                              scanner_model=self.scanner_model,
-                              materials={
-                                'ICRU_lung_adult_healthy': -1000,
-                                'water': -100},
-                              output_dir=lesion_dir)
-        lesion_only.xcist.cfg.physics.energyCount = 2
-        lesion_only.xcist.cfg.physics.monochromatic = -1
-        lesion_only.xcist.cfg.physics.enableElectronicNoise = 0
-        lesion_only.xcist.cfg.physics.enableQuantumNoise = 0
-        lesion_only.run_scan(mA=500, views=100, startZ=startZ, endZ=endZ,
-                             pitch=self.pitch)
-        lesion_only.run_recon(slice_thickness=slice_thickness, fov=fov)
-        rmtree(lesion_dir)
-        return (lesion_only.recon > -950) & (self.recon > -300)
-
     def scout_view(self, startZ=None, endZ=None, pitch=0):
         '''
         Displays a simulated scout radiograph (summation along one axis) of the phantom,
@@ -680,6 +628,9 @@ class Scanner():
         slice_thickness = int(slice_thickness) if slice_thickness else slice_increment
         if not (slice_increment or slice_thickness):
             return self
+
+        self.slice_thickness = slice_thickness or self.xcist.cfg.recon.sliceThickness
+        self.slice_increment = slice_increment or self.slice_thickness
         n_slices = len(self.recon)
         starts = np.arange(0, n_slices, slice_increment, dtype=int)
         for slab_start in starts:

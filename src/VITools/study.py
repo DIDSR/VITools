@@ -384,7 +384,9 @@ Results:\n
             pass
 
         if parallel:
+            pyenv = Path(sys.executable).parent / 'activate'
             run(['bash', str(src_dir / 'run_batchmode.sh'),
+                 pyenv,
                  str(src_dir / 'batchmode_CT_dataset_pipeline.sge'),
                  f'{csv_fname}'])
         else:

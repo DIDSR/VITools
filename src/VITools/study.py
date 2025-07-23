@@ -8,6 +8,7 @@ and a command-line interface for executing studies.
 
 import os
 import sys
+from datetime import datetime
 from pathlib import Path
 from tqdm import tqdm
 import shutil
@@ -48,6 +49,14 @@ def get_available_phantoms():
         if result_list:  # Check if the plugin returned a non-empty list
             discovered_phantom_classes.update(result_list)
     return discovered_phantom_classes
+
+
+def clear_screen():
+    # Check the operating system and execute the appropriate command
+    if os.name == 'nt':  # For Windows
+        _ = os.system('cls')
+    else:  # For Unix-based systems (Linux, macOS)
+        _ = os.system('clear')
 
 
 class Study:
@@ -348,7 +357,7 @@ Results:\n
         return pd.concat([pd.read_csv(o) for o in results_files],
                          ignore_index=True)
 
-    def run_all(self, parallel=True) -> pd.DataFrame:
+    def run_all(self, parallel=True, verbose=False) -> pd.DataFrame:
         '''
         Runs all scans defined in the study.
 
@@ -368,11 +377,11 @@ Results:\n
 
         self.clear_previous_results()
         patientids = list(range(len(self.metadata)))
+        output = Path(self.metadata.iloc[0]['output_directory']).parent
         if parallel and not shutil.which("qsub"):
             print("qsub not found, running in serial mode.")
             parallel = False
         else:
-            output = Path(self.metadata.iloc[0]['output_directory']).parent
             output.mkdir(exist_ok=True, parents=True)
             csv_fname = output / 'sim_input.csv'
             csv_fname = csv_fname.absolute()
@@ -384,12 +393,18 @@ Results:\n
         except KeyError:
             pass
 
+        log_dir = None
         if parallel:
             pyenv = Path(sys.executable).parent / 'activate'
+            now = datetime.now()
+            log_name = 'VIT-BATCH_' + now.strftime("%m-%d-%Y_%H-%M")
+            log_dir = output.absolute() / 'logs' / log_name
+            log_dir.mkdir(exist_ok=True, parents=True)
             run(['bash', str(src_dir / 'run_batchmode.sh'),
                  pyenv,
                  str(src_dir / 'batchmode_CT_dataset_pipeline.sge'),
-                 f'{csv_fname}'])
+                 f'{csv_fname}',
+                 log_dir])
         else:
             for patientid in tqdm(patientids):
                 results = self.run_study(patientid)
@@ -410,6 +425,12 @@ Results:\n
         with tqdm(total=scans_queued, desc='Scans completed in parallel') as pbar:
             while scans_completed < scans_queued:
                 sleep(1)
+                if verbose:
+                    task_logs = sorted(list(log_dir.glob('task_*.log'))) if log_dir else []
+                    clear_screen()
+                    for log in task_logs:
+                        with open(log) as f:
+                            print(f'{log.stem}: ', f.readlines()[-1])
                 output_df = self.get_scans_completed()
                 if len(np.unique(output_df.get('case_id', []))) > scans_completed:
                     pbar.update(
@@ -540,6 +561,9 @@ def vit_cli(arg_list: list[str] | None = None):
     parser.add_argument('--parallel', '-p', type=bool,
                         default=False,
                         help='run simulations in parallel')
+    parser.add_argument('--verbose', '-v', type=bool,
+                        default=False,
+                        help='show parallel progress bars')
     args = parser.parse_args(arg_list)
     if args.input_csv:
         input_csv = args.input_csv

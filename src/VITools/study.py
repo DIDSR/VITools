@@ -365,6 +365,7 @@ Results:\n
         Returns:
             Study: The Study instance itself, after all scans have processed.
         '''
+
         self.clear_previous_results()
         patientids = list(range(len(self.metadata)))
         if parallel and not shutil.which("qsub"):
@@ -394,6 +395,7 @@ Results:\n
                 results = self.run_study(patientid)
                 series = self.metadata.iloc[patientid]
                 output_directory = Path(series.output_directory)
+                print(f"saving intermediate results to {output_directory / f'metadata_{patientid}.csv'}")
                 results.to_csv(output_directory / f'metadata_{patientid}.csv',
                                index=False)
                 if series.remove_raw:

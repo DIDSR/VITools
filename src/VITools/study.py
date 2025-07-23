@@ -558,12 +558,8 @@ def vit_cli(arg_list: list[str] | None = None):
                           input csv to recreate prior dataset,
                           see `recruit --help` for more details
                         ''')
-    parser.add_argument('--parallel', '-p', type=bool,
-                        default=False,
-                        help='run simulations in parallel')
-    parser.add_argument('--verbose', '-v', type=bool,
-                        default=False,
-                        help='show parallel progress bars')
+    parser.add_argument('--parallel', '-p', action='store_true', help="Run simulations in parallel.")
+    parser.add_argument('--verbose', '-v', action='store_true', help='show parallel progress bars')
     args = parser.parse_args(arg_list)
     if args.input_csv:
         input_csv = args.input_csv

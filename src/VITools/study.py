@@ -349,7 +349,7 @@ Results:\n
         return pd.concat([pd.read_csv(o) for o in results_files],
                          ignore_index=True)
 
-    def run_all(self, parallel=True) -> pd.DataFrame:
+    def run_all(self, parallel=True, overwrite=False) -> pd.DataFrame:
         '''
         Runs all scans defined in the study.
 
@@ -362,13 +362,18 @@ Results:\n
                 If True, attempts to run scans in parallel using batch system.
                 If False or if the batch system is not found, runs serially.
                 Defaults to True.
+            overwrite (bool, optional):
+                If True, deletes previous simulation runs, if available.
+                If False, study will attempt to resume any unfinished scans.
+                Defaults to False.
 
         Returns:
             Study: The Study instance itself, after all scans have processed.
         '''
-
-        self.clear_previous_results()
-        patientids = list(range(len(self.metadata)))
+        if overwrite:
+            self.clear_previous_results()
+        patientids = [int(o.split('case_')[1]) for o in self.metadata.case_id
+                      if o not in self.results.case_id.unique()]
         output = Path(self.metadata.iloc[0]['output_directory']).parent
         if parallel and not shutil.which("qsub"):
             print("qsub not found, running in serial mode.")

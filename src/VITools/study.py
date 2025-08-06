@@ -384,7 +384,7 @@ Results:\n
             csv_fname = output / f"{output.name}_study_plan.csv"
             print(f'study plan saved to: {csv_fname}')
             csv_fname = csv_fname.absolute()
-            self.metadata.to_csv(csv_fname)
+            self.metadata.to_csv(csv_fname, index=False)
 
         try:
             patientids = [int(os.environ['SLURM_ARRAY_TASK_ID']) - 1]

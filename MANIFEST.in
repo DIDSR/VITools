@@ -1,1 +1,2 @@
 include src/VITools/defaults/*
+include src/VITools/run_batchmode.sh

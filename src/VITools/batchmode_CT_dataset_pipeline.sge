@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --time=30:00:00        # time limit
-#SBATCH --mem=64G             # memory limit
+#SBATCH --mem=16G             # memory limit
 export LOG_DIR=$1
 CASES=$2
 INPUT=$3

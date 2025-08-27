@@ -1,9 +1,9 @@
 #!/bin/bash
-#SBATCH --time=30:00:00        # time limit
 #SBATCH --mem=16G             # memory limit
-export LOG_DIR=$1
-CASES=$2
-INPUT=$3
+PY_ENV=$1
+export LOG_DIR=$2
+CASES=$3
+INPUT=$4
 
 mkdir -p $LOG_DIR
 
@@ -14,7 +14,7 @@ exec 2>> $LOG_DIR/$LOGNAME
 
 echo "==== begin job $JOB_NAME ($SLURM_ARRAY_TASK_ID) at:" `date` "on host $HOSTNAME"
 
-source /home/brandon.nelson/Dev/VITools/.vitools/bin/activate
+source $PY_ENV
 
 START_TIME=`date +%s`
 set -x

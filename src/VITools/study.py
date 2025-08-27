@@ -8,9 +8,10 @@ and a command-line interface for executing studies.
 
 import os
 import sys
+from datetime import datetime
 from pathlib import Path
 from tqdm import tqdm
-from shutil import rmtree
+import shutil
 from time import sleep
 import ast
 from subprocess import run
@@ -113,7 +114,7 @@ Results:\n
         for idx in range(len(self.metadata)):
             output_dir = Path(self.metadata.iloc[idx]['output_directory'])
             if output_dir.exists():
-                rmtree(output_dir)
+                shutil.rmtree(output_dir, ignore_errors=True)
 
     @staticmethod
     def generate_from_distributions(phantoms: list[str],
@@ -344,11 +345,11 @@ Results:\n
             if len(results_files) > 0:
                 scans_completed += 1
         if len(results_files) < 1:
-            return []
+            return pd.DataFrame()
         return pd.concat([pd.read_csv(o) for o in results_files],
                          ignore_index=True)
 
-    def run_all(self, parallel=True) -> pd.DataFrame:
+    def run_all(self, parallel=True, overwrite=False) -> pd.DataFrame:
         '''
         Runs all scans defined in the study.
 
@@ -361,28 +362,29 @@ Results:\n
                 If True, attempts to run scans in parallel using batch system.
                 If False or if the batch system is not found, runs serially.
                 Defaults to True.
+            overwrite (bool, optional):
+                If True, deletes previous simulation runs, if available.
+                If False, study will attempt to resume any unfinished scans.
+                Defaults to False.
 
         Returns:
             Study: The Study instance itself, after all scans have processed.
         '''
-        self.clear_previous_results()
-        patientids = list(range(len(self.metadata)))
-        returncode = True
-        if parallel:
-            try:
-                out = run(["qsub", "--help"])
-                returncode = out.returncode
-            except FileNotFoundError:
-                returncode = True
-        if returncode:
+        if overwrite:
+            self.clear_previous_results()
+
+        patientids = [int(o.split('case_')[1]) for o in self.metadata.case_id
+                      if o not in self.results.get('case_id', [])]
+        output = Path(self.metadata.iloc[0]['output_directory']).parent
+        if parallel and not shutil.which("qsub"):
+            print("qsub not found, running in serial mode.")
             parallel = False
-            print('qsub not found, running in serial mode')
         else:
-            output = Path(self.metadata.iloc[0]['output_directory']).parent
             output.mkdir(exist_ok=True, parents=True)
-            csv_fname = output / 'sim_input.csv'
+            csv_fname = output / f"{output.name}_study_plan.csv"
+            print(f'study plan saved to: {csv_fname}')
             csv_fname = csv_fname.absolute()
-            self.metadata.to_csv(csv_fname)
+            self.metadata.to_csv(csv_fname, index=False)
 
         try:
             patientids = [int(os.environ['SLURM_ARRAY_TASK_ID']) - 1]
@@ -390,35 +392,44 @@ Results:\n
         except KeyError:
             pass
 
+        log_dir = None
         if parallel:
+            pyenv = Path(sys.executable).parent / 'activate'
+            now = datetime.now()
+            log_name = 'VIT-BATCH_' + now.strftime("%m-%d-%Y_%H-%M")
+            log_dir = output.absolute() / 'logs' / log_name
+            log_dir.mkdir(exist_ok=True, parents=True)
             run(['bash', str(src_dir / 'run_batchmode.sh'),
+                 pyenv,
                  str(src_dir / 'batchmode_CT_dataset_pipeline.sge'),
-                 f'{csv_fname}'])
+                 f'{csv_fname}',
+                 log_dir])
         else:
             for patientid in tqdm(patientids):
                 results = self.run_study(patientid)
                 series = self.metadata.iloc[patientid]
                 output_directory = Path(series.output_directory)
+                print(f"saving intermediate results to {output_directory / f'metadata_{patientid}.csv'}")
                 results.to_csv(output_directory / f'metadata_{patientid}.csv',
                                index=False)
                 if series.remove_raw:
-                    rmtree(output_directory / series.phantom)
+                    shutil.rmtree(output_directory / series.phantom)
                     [os.remove(o) for o in Path('.').rglob('VIT-BATCH*') if
                      o.is_file()]
 
         output_df = self.get_scans_completed()
         scans_queued = len(patientids)
-        scans_completed = len(self.get_scans_completed())
-        with tqdm(total=scans_queued,
-                  desc='Scans completed in parallel') as pbar:
+        output_df = self.get_scans_completed()
+        scans_completed = len(np.unique(output_df.get('case_id', [])))
+        with tqdm(total=scans_queued, desc='Scans completed in parallel') as pbar:
             while scans_completed < scans_queued:
                 sleep(1)
-                if len(self.get_scans_completed()) > scans_completed:
+                output_df = self.get_scans_completed()
+                if len(np.unique(output_df.get('case_id', []))) > scans_completed:
                     pbar.update(
-                        len(self.get_scans_completed()) - scans_completed
+                        len(np.unique(output_df.get('case_id', []))) - scans_completed
                         )
-                    output_df = self.get_scans_completed()
-                    scans_completed = len(output_df)
+                    scans_completed = len(np.unique(output_df.get('case_id', [])))
         return self
 
     @property

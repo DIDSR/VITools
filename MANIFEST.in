@@ -1,1 +1,3 @@
 include src/VITools/defaults/*
+include src/VITools/run_batchmode.sh
+include src/VITools/batchmode_CT_dataset_pipeline.sge

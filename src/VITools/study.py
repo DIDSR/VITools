@@ -334,11 +334,24 @@ Results:\n
 
         patientids = pending_scans.index.tolist()
         output = Path(self.metadata.iloc[0]['output_directory']).parent
-        csv_fname = output / f"{output.name}_study_plan.csv"
+        if parallel and not shutil.which("qsub"):
+            print("qsub not found, running in serial mode.")
+            parallel = False
+        # else:
+        #     output.mkdir(exist_ok=True, parents=True)
+        #     csv_fname = output / f"{output.name}_study_plan.csv"
+        #     print(f'study plan saved to: {csv_fname}')
+        #     csv_fname = csv_fname.absolute()
+        #     self.metadata.to_csv(csv_fname, index=False)
 
-        if parallel and shutil.which("qsub"):
-            print(f"Submitting {len(patientids)} jobs for parallel execution.")
-            self.metadata.to_csv(csv_fname, index=False)
+        try:
+            patientids = [int(os.environ['SLURM_ARRAY_TASK_ID']) - 1]
+            print(f'Now running from job {patientids[0] + 1}')
+        except KeyError:
+            pass
+
+        log_dir = None
+        if parallel:
             pyenv = Path(sys.executable).parent / 'activate'
             now = datetime.now()
             log_name = 'VIT-BATCH_' + now.strftime("%Y-%m-%d_%H-%M")

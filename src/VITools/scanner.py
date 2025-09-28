@@ -337,7 +337,7 @@ class Scanner():
         """
         if filename in available_scanners:
             filename = install_path / 'defaults' / filename
-        cfg = xc.load_cfg(filename)
+        cfg = xc.source_cfg(filename)
         self.xcist.cfg.scanner = cfg.scanner
         self.scanner_model = Path(filename).name
         return self

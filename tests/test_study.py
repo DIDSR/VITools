@@ -11,8 +11,8 @@ can correctly:
 from pathlib import Path
 from VITools import Study, get_available_phantoms
 
-test_dir = Path(__file__).parent.absolute()
-
+test_dir = Path('tests/results').absolute()
+print(f'test_dir: {test_dir}')
 
 def test_study():
     """Tests the core functionalities of the Study class.
@@ -26,6 +26,8 @@ def test_study():
         to a new study instance and runs it.
     5.  It checks for equality between the results of the first two runs.
     """
+    if len(get_available_phantoms()) < 1:
+        raise RuntimeError('No phantom plugins loaded, please run the following to install some simple IQ phantoms: `pip install git+https://github.com/DIDSR/InSilicoIQ.git`')
     input_df = Study.generate_from_distributions(phantoms=list(get_available_phantoms().keys()),
                                                  study_count=2,
                                                  views=[20],

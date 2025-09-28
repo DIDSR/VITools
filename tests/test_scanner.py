@@ -14,7 +14,7 @@ import numpy as np
 
 from VITools import read_dicom, Scanner, Phantom
 
-from .utils import create_circle_phantom
+from utils import create_circle_phantom
 
 test_dir = Path(__file__).parent.absolute()
 
@@ -68,17 +68,8 @@ def scan_CTP404(test_dir: Path, views: int = 100, thickness: int = 1, increment:
     result_dir = test_dir / 'test_result'
     if result_dir.exists():
         rmtree(result_dir)
-    dcm = test_dir / 'CTP404_groundtruth.dcm'
 
-    img = np.repeat(read_dicom(dcm)[None], 11, axis=0)
-    diameter_pixels = get_effective_diameter(img[0], 1)
-    known_diameter_mm = 200
-    fov_mm = img.shape[-1] * known_diameter_mm / diameter_pixels
-    dx = fov_mm / img.shape[-1]
-    dy = dx
-    dz = 1.0
-    phantom = Phantom(img, spacings=[dz, dx, dy])
-    ct = Scanner(phantom, output_dir=result_dir)
+    ct = Scanner(phantom, 'Siemens_DefinitionFlash', output_dir=result_dir)
     ct.run_scan(views=views)
     ct.run_recon(slice_thickness=thickness, slice_increment=increment)
     return ct
@@ -95,7 +86,7 @@ def test_scan_shape():
     dcms = ct.write_to_dicom(ct.output_dir / 'test.dcm')
     dcms_in_dir = list(ct.output_dir.glob('**/*.dcm'))
     assert ct.recon.mean() > -800
-    assert ct.recon.shape == (1, 512, 512)
+    assert ct.recon.shape == (3, 512, 512)
     assert ct.projections.shape == (views,
                                     ct.xcist.cfg.scanner.detectorRowCount,
                                     ct.xcist.cfg.scanner.detectorColCount)
@@ -148,3 +139,6 @@ def test_recon_length():
     scanner.run_scan(startZ=center - width / 2, endZ=center + width / 2, views=10)
     scanner.run_recon(slice_thickness=1, slice_increment=1)
     assert len(scanner.recon) == 14, "Recon length should be 14 for double aperture scan"
+
+if __name__ == '__main__':
+    test_scan_shape()

@@ -101,8 +101,13 @@ Results:\n
         '''
         if isinstance(input_csv, pd.DataFrame):
             self.metadata = input_csv
+            input_csv = Path('study_plan.csv').absolute()
+            print(f'study plan saved to: {input_csv}')
+            self.metadata.to_csv(input_csv, index=False)
         elif isinstance(input_csv, str | Path):
             self.metadata = pd.read_csv(input_csv)
+        self.csv_fname = input_csv
+        
 
     def clear_previous_results(self):
         '''
@@ -379,12 +384,6 @@ Results:\n
         if parallel and not shutil.which("qsub"):
             print("qsub not found, running in serial mode.")
             parallel = False
-        # else:
-        #     output.mkdir(exist_ok=True, parents=True)
-        #     csv_fname = output / f"{output.name}_study_plan.csv"
-        #     print(f'study plan saved to: {csv_fname}')
-        #     csv_fname = csv_fname.absolute()
-        #     self.metadata.to_csv(csv_fname, index=False)
 
         try:
             patientids = [int(os.environ['SLURM_ARRAY_TASK_ID']) - 1]
@@ -402,7 +401,7 @@ Results:\n
             run(['bash', str(src_dir / 'run_batchmode.sh'),
                  pyenv,
                  str(src_dir / 'batchmode_CT_dataset_pipeline.sge'),
-                 f'{csv_fname}',
+                 f'{self.csv_fname}',
                  log_dir])
         else:
             for patientid in tqdm(patientids):

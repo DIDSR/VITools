@@ -84,7 +84,7 @@ def test_scan_shape():
     views = 100
     ct = scan_CTP404(test_dir, views, increment=7)
     dcms = ct.write_to_dicom(ct.output_dir / 'test.dcm')
-    dcms_in_dir = list(ct.output_dir.glob('**/*.dcm'))
+    dcms_in_dir = list(ct.output_dir.glob('*.dcm'))
     assert ct.recon.mean() > -800
     assert ct.recon.shape == (3, 512, 512)
     assert ct.projections.shape == (views,

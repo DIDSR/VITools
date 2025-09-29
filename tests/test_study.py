@@ -9,10 +9,14 @@ can correctly:
 - Produce consistent and repeatable results.
 """
 from pathlib import Path
+from shutil import rmtree
 from VITools import Study, get_available_phantoms
 
 test_dir = Path('tests/results').absolute()
-print(f'test_dir: {test_dir}')
+if test_dir.exists():
+    rmtree(test_dir)
+test_dir.mkdir(parents=True)
+
 
 def test_study():
     """Tests the core functionalities of the Study class.

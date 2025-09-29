@@ -1,33 +1,31 @@
-######################################################################################################################
-# Program name: dicom_to_voxelized_phantom.py
-#
-# This program reads in a series of DICOM images and several parameters specified in a config file. It then generates a 
-# voxelized phantom based on those images and parameters.
-#
-# Inputs (specified in a config file):
-#   phantom.dicom_path    (string)           Path where the DICOM images are located.
-#   phantom.phantom_path  (string)           Path where the phantom files are to be written
-#                                                (the last folder name will be the phantom files' base name).
-#   phantom.materials     [list of strings]  Material names; must be specified in the CatSim material data folder.
-#   phantom.mu_energy     (float)            Energy (keV) at which mu is to be calculated for all materials.
-#                                                Note that this should correcspond to the estimated "effective energy"
-#                                                for the kVp used for the scan that produced the DICOM images.
-#   phantom.thresholds    [list of floats]   Lower threshold (HU) for each material.
-#   phantom.slice_range   [list of ints]	 DICOM image numbers to include.
-#   phantom.show_phantom  (logical)          Flag to turn on/off image display.
-#   phantom.overwrite     (logical)          Flag to overwrite existing files without warning.
-# 
-#  Outputs
-#    a .json file that describes the phantom
-#    a .raw file containing the input (HU) images in one big file, easily read by ImageJ.
-#    a .raw file for each material, containing the "volume fraction" of that material in each voxel.
-#
-# Author: Chad Bircher 8/18/2021
-# Revised: Paul FitzGerald 3/13/2022
-#
-# Copyright 2020, General Electric Company. All rights reserved. See https://github.com/xcist/code/blob/master/LICENSE
-#
-######################################################################################################################
+"""Converts a series of DICOM images into a voxelized phantom for XCIST.
+
+This script reads a directory of DICOM images and a set of parameters from a
+configuration object. It then segments the images into different materials based
+on Hounsfield Unit (HU) thresholds and generates a set of output files that
+represent a voxelized phantom, suitable for use in the XCIST CT simulation
+framework.
+
+The primary entry point is the `DICOM_to_voxelized_phantom` function.
+
+Inputs (specified in a configuration object, e.g., `cfg.phantom`):
+    dicom_path (str): Path to the directory containing the DICOM images.
+    phantom_path (str): Path where the output phantom files will be written.
+    materials (list[str]): List of material names (e.g., 'ncat_water').
+    mu_energy (float): The energy (keV) at which to calculate material
+        attenuation coefficients (mu), corresponding to the effective energy
+        of the source DICOM scan.
+    thresholds (list[float]): Lower HU thresholds for each material.
+    slice_range (list[int]): Range of DICOM image numbers to include.
+    show_phantom (bool): If True, display the resulting phantom slices.
+    overwrite (bool): If True, overwrite existing output files without prompting.
+
+Outputs:
+    - A .json file describing the phantom's properties.
+    - A .raw file for the input HU images.
+    - A .raw file for each material, containing the volume fraction of that
+      material in each voxel.
+"""
 
 from pathlib import Path
 import os
@@ -38,362 +36,231 @@ import pydicom
 import copy
 import json
 import matplotlib.pyplot as plt
-from gecatsim import GetMu
-from gecatsim import source_cfg
+from gecatsim import GetMu, source_cfg
 
 
 class IndexTracker:
-    # Tracker for allowing scroll wheel to move through a large number of images
-    # The images are assumed to be stored as [image_number, x, y]
-    # In the event that the images are stored as [x, y, image number] update [self.ind, :, :] -> [:, :, self.ind]
+    """A class to track and update the displayed slice in a matplotlib plot.
+
+    This class enables scrolling through slices of a 3D image volume using
+    the mouse wheel in a matplotlib window.
+
+    Attributes:
+        ax (matplotlib.axes.Axes): The matplotlib axes object for the plot.
+        X (np.ndarray): The 3D image data, expected shape (slices, rows, cols).
+        slices (int): The number of slices in the image data.
+        ind (int): The index of the currently displayed slice.
+        im (matplotlib.image.AxesImage): The image object being displayed.
+    """
     def __init__(self, ax, X):
+        """Initializes the IndexTracker.
+
+        Args:
+            ax (matplotlib.axes.Axes): The axes on which to display the image.
+            X (np.ndarray): The 3D image volume to scroll through.
+        """
         self.ax = ax
         self.X = X
-        self.slices, rows, cols = X.shape
-        self.ind = self.slices//2
-        self.im = ax.imshow(self.X[self.ind, :, :]) # initialize the image number
-        self.update() # draw the default image (typically the central slice)
+        self.slices, _, _ = X.shape
+        self.ind = self.slices // 2
+        self.im = ax.imshow(self.X[self.ind, :, :])
+        self.update()
 
-    def on_scroll(self, event): # when the wheel has scrolled
+    def on_scroll(self, event):
+        """Handles the mouse scroll event to change the displayed slice.
+
+        Args:
+            event (matplotlib.backend_bases.MouseEvent): The scroll event.
+        """
         if event.button == 'up':
-            self.ind = (self.ind + 1) % self.slices # increment image number by one
+            self.ind = (self.ind + 1) % self.slices
         else:
-            self.ind = (self.ind - 1) % self.slices # decrement image number by one
-        self.update() # update the image
+            self.ind = (self.ind - 1) % self.slices
+        self.update()
 
-    def update(self): # When updating
-        self.im.set_data(self.X[self.ind, :, :]) # select the image
-        self.ax.set_ylabel('slice %s' % self.ind) # title the y axis with the image number
-        self.im.axes.figure.canvas.draw() # update the figure with the selected image
-        
+    def update(self):
+        """Updates the displayed image to the current slice index."""
+        self.im.set_data(self.X[self.ind, :, :])
+        self.ax.set_ylabel(f'slice {self.ind}')
+        self.im.axes.figure.canvas.draw()
 
-def initialize(phantom):
 
-    # This function:
-    #   Checks for the existence of the DICOM files.
-    #   Creates a list of DICOM filenames that will be read.
-    #   Initializes several variables.
-    #   Checks for the existence of the phantom folder/files.
-    #   Creates a list of material volume fraction filenames that will be written.
-    #   Allocates an array for the volume fraction data.
-    #   If they are not specified in the config file, calculates segmentation thresholds.
-    #   Creates a dictionary for material variables.
-    # Inputs:
-    #   phantom.dicom_path
-    #   phantom.slice_range
-    #   phantom.phantom_path
-    #   phantom.materials
-    # Outputs:
-    #   phantom.basename
-    #   phantom.num_materials
-    #   phantom.num_cols
-    #   phantom.num_rows
-    #   phantom.num_slices
-    #   phantom.pixel_size_x
-    #   phantom.pixel_size_y
-    #   phantom.pixel_size_z
-    #   dicom_filenames - list of DICOM filenames in numerical order
-    #   volume_fraction_filenames - list of material volume fraction filenames in order specified
-    #   volume_fraction_array - a 4D array (column, row, slice, material)
-    #   materials_dict - includes material names, volume fraction file names, mu values, and threshold values. 
+def initialize(phantom) -> tuple:
+    """Initializes variables and prepares for phantom generation.
 
-    # Find all files and DICOM files in the specified DICOM directory
+    This function performs several setup tasks:
+    - Validates the DICOM path and creates a sorted list of DICOM files.
+    - Reads a sample DICOM to extract metadata (dimensions, spacing, etc.).
+    - Sets up output paths and filenames.
+    - Calculates material attenuation coefficients (mu) and segmentation
+      thresholds if not provided.
+    - Creates the output directory and handles overwriting existing files.
+
+    Args:
+        phantom: A configuration object with attributes like `dicom_path`,
+            `phantom_path`, `materials`, `mu_energy`, etc.
+
+    Returns:
+        A tuple containing:
+        - The updated phantom configuration object.
+        - A list of DICOM filenames to be processed.
+        - A dictionary to hold the volume fraction arrays for each material.
+        - A dictionary containing material properties (names, mu values, etc.).
+    """
     if not os.path.exists(phantom.dicom_path):
-        raise Exception('******** Error! {:s} not found..'.format(phantom.dicom_path))
-    allfiles = [f for f in os.listdir(phantom.dicom_path) if os.path.isfile(os.path.join(phantom.dicom_path, f))]
-    dcmfiles = [j for j in allfiles if '.dcm' in j]
-    if len(dcmfiles) == 0:
-        raise Exception('******** Error! No DICOM files exist in {:s}.'.format(phantom.dicom_path))
+        raise FileNotFoundError(f"DICOM path not found: {phantom.dicom_path}")
 
-    # Sort DICOM files: Initial order is alphabetical - switch to numeric.
-    dcm_num = []
-    for dicom_filename in dcmfiles:
-        # dicom number in the file name - alphabetical order - convert to number
-        dcm_num.append(int(re.findall(r'\d+', dicom_filename)[0]))
+    all_files = [f for f in os.listdir(phantom.dicom_path) if os.path.isfile(os.path.join(phantom.dicom_path, f))]
+    dcm_files = [j for j in all_files if j.endswith('.dcm')]
+    if not dcm_files:
+        raise FileNotFoundError(f"No DICOM files found in {phantom.dicom_path}")
 
-    # sort the dicom numbers by numeric order
-    indices = sorted(range(len(dcm_num)),key=dcm_num.__getitem__)
+    # Sort DICOM files numerically instead of alphabetically
+    dcm_files.sort(key=lambda f: int(re.findall(r'\d+', f)[0]))
 
-    # find the index associated with the new sorted number to open files in numeric rather than alphabetic order
-    dicom_filenames = [dcmfiles[index] for index in indices]
+    if hasattr(phantom, 'slice_range'):
+        indices = list(range(phantom.slice_range[0], phantom.slice_range[1] + 1))
+        dcm_files = [dcm_files[i] for i in indices]
 
-    # If a range of slices was specified, reduce the list of files.
-    try:
-        # check if ranges for slices are given
-        try:
-            # If a single range is given use that range of slices
-            test = list(range(phantom.slice_range[0], 1 + phantom.slice_range[1]))
-        except:
-            test = []
-            for j in phantom.slice_range:
-                # if a series of ranges are given then include the slices in each range
-                test += list(range(j[0], 1+j[1]))
-        # filter the dicom data on the selected range(s)
-        dicom_filenames = [dicom_filenames[i] for i in test]
-    except:
-        # keep the original if the ranges are inappropriate or if slice_range is not specified.
-        dicom_filenames = dicom_filenames
+    sample_dicom = pydicom.dcmread(os.path.join(phantom.dicom_path, dcm_files[0]))
 
-    # Read in one DICOM file to use as a sample.
-    dicom_filename = os.path.join(phantom.dicom_path, dcmfiles[0])
-    # sample_dicom = []
-    sample_dicom = pydicom.dcmread(dicom_filename)
-
-    # Display basic information about the DICOM dataset.
-    try:
-        PatientAge = sample_dicom.PatientAge
-    except:
-        PatientAge = 'Unavailable'
-
-    try:
-        PatientSex = sample_dicom.PatientSex
-    except:
-        PatientSex = 'Unavailable'
-
-    try:
-        Manufacturer = sample_dicom.Manufacturer
-    except:
-        Manufacturer = 'Unavailable'
-
-    try:
-        ManufacturerModelName = sample_dicom.ManufacturerModelName
-    except:
-        ManufacturerModelName = 'Unavailable'
-
-    try:
-        StudyDate = sample_dicom.StudyDate
-    except:
-        StudyDate = 'Unavailable'
-
-    try:
-        StudyDescription = sample_dicom.StudyDescription
-    except:
-        StudyDescription = 'Unavailable'
-
-    try:
-        KVP = sample_dicom.KVP
-    except:
-        KVP = 'Unavailable'
-
-    try:
-        XRayTubeCurrent = sample_dicom.XRayTubeCurrent
-    except:
-        XRayTubeCurrent = 'Unavailable'
-
-    try:
-        ConvolutionKernel = sample_dicom.ConvolutionKernel
-    except:
-        ConvolutionKernel = 'Unavailable'
-
-    try:
-        ReconstructionDiameter = sample_dicom.ReconstructionDiameter
-    except:
-        ReconstructionDiameter = 'Unavailable'
-
-    try:
-        PixelSpacing = sample_dicom.PixelSpacing[0]
-    except:
-        PixelSpacing = 'Unavailable'
-
-    try:
-        SliceThickness = sample_dicom.SliceThickness
-    except:
-        SliceThickness = 'Unavailable'
-
-    print('*')
-    print('*********************************************')
-    print('* DICOM dataset information:')
-    print('* Patient age: {:s}, sex: {:s}'.format(PatientAge, PatientSex))
-    print('* Scanner: {:s} {:s}'.format(Manufacturer, ManufacturerModelName))
-    print('* Study date & desciption: {:s}, {:s}'.format(StudyDate, StudyDescription))
-    print('* Technique: {} kVp, {} mA'.format(KVP, XRayTubeCurrent))
-    print('* Reconstruction: {:s} kernel, {}-mm FOV'.format(ConvolutionKernel, ReconstructionDiameter))
-    print('* Image: {}-mm pixels (XY), {}-mm slices (Z)'.format(PixelSpacing, SliceThickness))
-    print('*********************************************')
-
-    # Initialize variables.
+    # Initialize phantom properties from DICOM metadata
     phantom.basename = os.path.basename(phantom.phantom_path)
     phantom.num_materials = len(phantom.materials)
-    phantom.num_cols = sample_dicom.Columns
-    phantom.num_rows = sample_dicom.Rows
-    phantom.num_slices = len(dicom_filenames)
-    phantom.pixel_size_x = sample_dicom.PixelSpacing[0]
-    phantom.pixel_size_y = sample_dicom.PixelSpacing[1]
+    phantom.num_cols, phantom.num_rows = sample_dicom.Columns, sample_dicom.Rows
+    phantom.num_slices = len(dcm_files)
+    phantom.pixel_size_x, phantom.pixel_size_y = sample_dicom.PixelSpacing
     phantom.pixel_size_z = sample_dicom.SliceThickness
-    phantom.mu_water = GetMu('water', phantom.mu_energy)
-    phantom.mu_water = phantom.mu_water[-1]
-    phantom.json_filename = os.path.join(phantom.phantom_path, phantom.basename + '.json')
+    phantom.mu_water = GetMu('water', phantom.mu_energy)[-1]
+    phantom.json_filename = os.path.join(phantom.phantom_path, f"{phantom.basename}.json")
 
-    filenames_first_part = os.path.join(phantom.phantom_path, phantom.basename + '_')
-    filenames_last_part = '_' + str(phantom.num_cols) + 'x' + str(phantom.num_rows) + 'x' + str(phantom.num_slices) + '.raw'
-    mu_list = []
-    volume_fraction_array = {}
-    volume_fraction_filenames = []
-    for index, material in enumerate(phantom.materials):
-        
-        # Calculate mu values for each material.
-        mu_list.append(GetMu(material, phantom.mu_energy)[0])
-        
-        # Allocate an array for the volume fraction map of each material.
-        volume_fraction_array.update({material: np.zeros((phantom.num_slices, phantom.num_cols, phantom.num_rows), dtype=np.float32)})
+    # Prepare filenames and data structures
+    base_fname = os.path.join(phantom.phantom_path, f"{phantom.basename}_")
+    suffix = f"_{phantom.num_cols}x{phantom.num_rows}x{phantom.num_slices}.raw"
+    mu_list = [GetMu(mat, phantom.mu_energy)[0] for mat in phantom.materials]
 
-        # Assign output filenames for each material.
-        volume_fraction_filenames.append(filenames_first_part + material + filenames_last_part)
+    volume_fraction_array = {mat: np.zeros((phantom.num_slices, phantom.num_cols, phantom.num_rows), dtype=np.float32) for mat in phantom.materials}
+    volume_fraction_array['HU data'] = np.zeros((phantom.num_slices, phantom.num_cols, phantom.num_rows), dtype=np.float32)
 
-        # Calculate the thresholds - mu boundaries between materials
-        if material == phantom.materials[0]:
-            threshold_list = [0]
-        else:
-            # 55% lower mu material, 45% upper mu material
-            threshold_list.append(mu_list[index-1]*0.55 + mu_list[index]*0.45)
+    volume_fraction_filenames = [f"{base_fname}{mat}{suffix}" for mat in phantom.materials]
+    volume_fraction_filenames.append(f"{base_fname}HU_data{suffix}")
 
-    # Allocate an array for the HU data.
-    volume_fraction_array.update({'HU data': np.zeros((phantom.num_slices, phantom.num_cols, phantom.num_rows), dtype=np.float32)})
+    # Sort materials by mu value to define thresholds between them
+    sorted_indices = sorted(range(len(mu_list)), key=lambda k: mu_list[k])
+    sorted_materials = [phantom.materials[i] for i in sorted_indices]
+    sorted_mu = [mu_list[i] for i in sorted_indices]
 
-    # Assign an output filename for the HU data.
-    volume_fraction_filenames.append(filenames_first_part + 'HU_data' + filenames_last_part)
+    # Calculate thresholds based on midpoints between sorted mu values
+    calculated_thresholds = [0]
+    for i in range(1, len(sorted_mu)):
+        calculated_thresholds.append(sorted_mu[i-1] * 0.55 + sorted_mu[i] * 0.45)
 
-    # sort the mu_list and keep the index of the new values
-    indices = sorted(range(len(mu_list)), key=mu_list.__getitem__)
+    materials_dict = {
+        'material_names': sorted_materials,
+        'volume_fraction_filenames': volume_fraction_filenames,
+        'mu_values': sorted_mu,
+        'threshold_values': calculated_thresholds
+    }
 
-    # for each index calculate the threshold between the previous and current materials
-    # match the order for the mu, materials, and thresholds
-    mu_list1 = [mu_list[index] for index in indices]
-    material_names1 = [phantom.materials[index] for index in indices]
-    for index, material in enumerate(material_names1):
-        if material == material_names1[0]:
-            threshold_list1 = [0]
-        else:
-            # 55% lower mu material, 45% upper mu material
-            threshold_list1.append(mu_list1[index-1]*0.55 + mu_list1[index]*0.45)
+    # Override calculated thresholds if provided in config
+    if hasattr(phantom, 'thresholds') and len(phantom.thresholds) == len(materials_dict['threshold_values']):
+        mu_thresholds = [(hu + 1000) * phantom.mu_water / 1000 for hu in phantom.thresholds]
+        materials_dict['threshold_values'] = mu_thresholds
 
-    # Initialize the material dictionary.
-    materials_dict = {'material_names': material_names1,
-                      'volume_fraction_filenames': volume_fraction_filenames,
-                      'mu_values': mu_list1,
-                      'threshold_values': threshold_list1}
+    # Handle output directory creation and overwrite logic
+    os.makedirs(phantom.phantom_path, exist_ok=True)
+    if not getattr(phantom, 'overwrite', False) and any(os.path.exists(f) for f in volume_fraction_filenames):
+        print("Warning: Output files exist and will be overwritten.")
+        input("Press Enter to continue or Ctrl-C to quit.")
 
-    print('*')
-    print('*********************************************')
-    print('* Segmentation parameters:')
-
-    # If thresholds were correctly specified in the config file, over-ride calculated thresholds.
-    try: 
-        if len(phantom.thresholds) == len(materials_dict['threshold_values']):
-            # First convert the specified thresholds to LACs (mu).
-            mu_thresholds = [(hu + 1000) * phantom.mu_water / 1000 for hu in phantom.thresholds]
-            materials_dict.update({'threshold_values': mu_thresholds})
-            print('* Using thresholds specified in the config file.')
-    except:
-       print('* Using calculated thresholds.')
-       phantom.thresholds = materials_dict['threshold_values']
-
-    print('* Materials: {}'.format(materials_dict['material_names']))
-    print('* mu values (/cm): {}'.format([round(e, 2) for e in materials_dict['mu_values']]))
-    print('* mu(water) (/cm): {}'.format(round(phantom.mu_water, 2)))
-    print('* Thresholds (/cm): {}'.format([round(e, 2) for e in materials_dict['threshold_values']]))
-    hu_thresholds = [(1000 * mu / phantom.mu_water - 1000) for mu in materials_dict['threshold_values']]
-    print('* Thresholds (HU): {}'.format([round(e, 0) for e in hu_thresholds]))
-    print('*********************************************')
-
-    # Create the phantom folder if it doesn't exist.
-    if not os.path.exists(phantom.phantom_path):
-        os.makedirs(phantom.phantom_path)
-    else:
-        try:
-            overwrite = phantom.overwrite
-        except:
-            overwrite = False
-
-        if not overwrite:
-            # The folder is there, but are there files in it that will be over-written?
-            files_exist = False
-            for material_index in range(0, phantom.num_materials):
-                if os.path.exists(volume_fraction_filenames[material_index]):
-                    files_exist = True
-            
-            # If files will be over-written, print a warning.
-            if files_exist:
-                print('*')
-                print('*********************************************')
-                print('* Warning!')
-                print('* This folder exists:')
-                print('*     {:s}'.format(os.path.abspath(phantom.phantom_path)))
-                print('* These files exist:')
-                for material_index in range(0, phantom.num_materials):
-                    if os.path.exists(volume_fraction_filenames[material_index]):
-                        print('*     {:s}'.format(os.path.abspath(volume_fraction_filenames[material_index])))
-                print('* These files will be overwritten.')
-                print('* Press enter to continue or Ctrl-C to quit.')
-                input('*********************************************')
-
-    return phantom, dicom_filenames, volume_fraction_array, materials_dict
+    return phantom, dcm_files, volume_fraction_array, materials_dict
 
 
 def compute_volume_fraction_array(phantom, dicom_filenames, materials_dict, volume_fraction_array):
+    """Computes the volume fraction for each material from DICOM slices.
 
-    threshold_list = materials_dict['threshold_values']
+    This function iterates through each DICOM file, converts the HU pixel data
+    to linear attenuation coefficients (mu), and then segments the image into
+    material fractions based on the provided thresholds.
+
+    Args:
+        phantom: The phantom configuration object.
+        dicom_filenames (list[str]): List of DICOM filenames to process.
+        materials_dict (dict): Dictionary containing material properties.
+        volume_fraction_array (dict): Dictionary of NumPy arrays to store the
+            output volume fractions.
+
+    Returns:
+        dict: The updated `volume_fraction_array` dictionary filled with
+              computed data.
+    """
+    thresholds = materials_dict['threshold_values']
     material_names = materials_dict['material_names']
-    mu_list = materials_dict['mu_values']
-    print('* Calculating volume fraction maps for {} materials and {} slices...'.format(len(threshold_list), len(dicom_filenames)))
+    mu_values = materials_dict['mu_values']
+    print(f"* Calculating volume fraction maps for {len(thresholds)} materials and {len(dicom_filenames)} slices...")
 
-    # Generate volume fraction arrays: 
-    #   Read in each DICOM file
-    #   Separate into materials using thresholds calculated above
-    #   Calculate volume fraction
-    #   Append to arrays linked to materials
-    for dcm_index, dicom_filename in enumerate(dicom_filenames):
-        dicom_pathname = os.path.join(phantom.dicom_path, dicom_filename)
-        dicom_data = pydicom.dcmread(dicom_pathname)             # Read DICOM file
-        rows, cols = dicom_data.Rows, dicom_data.Columns
-        hu_array = dicom_data.pixel_array                        # Extract the data - in HU but with a "rescale intercept".
-        hu_array = hu_array + int(dicom_data.RescaleIntercept)   # Add the "rescale intercept" to get it into HU.
-        volume_fraction_array['HU data'][dcm_index] = hu_array.reshape(cols, rows)   # Store the HU data in the volume fraction array
-        mu_array = (hu_array + 1000) * phantom.mu_water / 1000   # Convert HU to LAC (mu)
-        mu_array[mu_array < 0] = 0                               # Remove negative values (non-physical)
-        bounds = copy.deepcopy(threshold_list)                   # Prevent the next line from appending to threshold_list
-        bounds.append(1.1*mu_array.max())                        # Set the upper bound for the last material to include the highest pixel in the array
-        for material_index, material in enumerate(material_names):  # For each material,
-            array0 = copy.deepcopy(mu_array)                     # Start with the mu array,
-            array0[array0 < bounds[material_index]] = 0          # Zero out pixels below lower threshold
-            array0[array0 >= bounds[material_index+1]] = 0       # Zero out pixels above upper threshold
-            array0 /= mu_list[material_index]                    # Calculate mu fraction relative to mu for this material.
-            volume_fraction_array[material][dcm_index] = array0.reshape(cols, rows)  # Store the mu fraction in the volume fraction array
+    for i, filename in enumerate(dicom_filenames):
+        dicom_path = os.path.join(phantom.dicom_path, filename)
+        dcm_data = pydicom.dcmread(dicom_path)
+
+        hu_array = dcm_data.pixel_array.astype(np.float32) + int(dcm_data.RescaleIntercept)
+        volume_fraction_array['HU data'][i] = hu_array
+
+        mu_array = (hu_array + 1000) * phantom.mu_water / 1000
+        mu_array[mu_array < 0] = 0
+
+        bounds = copy.deepcopy(thresholds) + [1.1 * mu_array.max()]
+
+        for j, material in enumerate(material_names):
+            # Isolate pixels within the material's mu range
+            mask = (mu_array >= bounds[j]) & (mu_array < bounds[j+1])
+            material_slice = np.zeros_like(mu_array)
+            material_slice[mask] = mu_array[mask] / mu_values[j]
+            volume_fraction_array[material][i] = material_slice
 
     return volume_fraction_array
 
 
 def write_files(phantom, materials_dict, volume_fraction_array):
+    """Writes the volume fraction arrays and the JSON metadata file.
 
-    volume_fraction_filenames = materials_dict['volume_fraction_filenames']
-    material_names = materials_dict['material_names']
-    material_names.append('HU data')
-    print('* Writing volume fraction files for {} materials and {} slices, plus the HU data...'.format(phantom.num_materials, phantom.num_slices))
+    Args:
+        phantom: The phantom configuration object.
+        materials_dict (dict): Dictionary of material properties.
+        volume_fraction_array (dict): Dictionary containing the computed
+            volume fraction data.
+    """
+    filenames = materials_dict['volume_fraction_filenames']
+    # The HU data is the last item in the array and filenames list
+    all_materials = materials_dict['material_names'] + ['HU data']
+    print(f"* Writing volume fraction files for {phantom.num_materials} materials and {phantom.num_slices} slices, plus HU data...")
 
-    for index, volume_fraction_filename in enumerate(volume_fraction_filenames):
-        print('* Writing {:s}...'.format(volume_fraction_filename))
-        with open(volume_fraction_filename, 'wb') as fout:
-            fout.write(volume_fraction_array[material_names[index]])
+    for i, material_name in enumerate(all_materials):
+        filename = filenames[i]
+        print(f"* Writing {filename}...")
+        with open(filename, 'wb') as f:
+            f.write(volume_fraction_array[material_name].tobytes())
    
-    # Remove entries associated with the HU data.
-    material_names = materials_dict['material_names'].pop()
-    volume_fraction_filenames = materials_dict['volume_fraction_filenames'].pop()
-
-    # Generate and write the .json file
     write_json_file(phantom, materials_dict)
-
-    return 0
 
 
 def write_json_file(phantom, materials_dict):
-    materials_dict['volume_fraction_filenames'] = list(map(lambda x: Path(x).name, materials_dict['volume_fraction_filenames']))
-    json_file_contents = {
-        "construction_description": 'Created by DICOM_to_voxelized_phantom.py',
+    """Generates and writes the phantom's JSON descriptor file.
+
+    Args:
+        phantom: The phantom configuration object.
+        materials_dict (dict): Dictionary of material properties.
+    """
+    # Use only the material filenames, not the HU data filename
+    material_filenames = [Path(f).name for f in materials_dict['volume_fraction_filenames'][:-1]]
+
+    json_contents = {
+        "construction_description": "Created by dicom_to_voxelized_phantom.py",
         "n_materials": phantom.num_materials,
         "mat_name": materials_dict['material_names'],
         "mu_values": materials_dict['mu_values'],
         "mu_thresholds": materials_dict['threshold_values'],
-        "volumefractionmap_filename": materials_dict['volume_fraction_filenames'],
+        "volumefractionmap_filename": material_filenames,
         "volumefractionmap_datatype": ["float"] * phantom.num_materials,
         "cols": [phantom.num_cols] * phantom.num_materials,
         "rows": [phantom.num_rows] * phantom.num_materials,
@@ -403,77 +270,62 @@ def write_json_file(phantom, materials_dict):
         "z_size": [phantom.pixel_size_z] * phantom.num_materials,
         "x_offset": [0.5 + phantom.num_cols / 2] * phantom.num_materials,
         "y_offset": [0.5 + phantom.num_rows / 2] * phantom.num_materials,
-        "z_offset": [0.5 + phantom.num_slices / 2] * phantom.num_materials
+        "z_offset": [0.5 + phantom.num_slices / 2] * phantom.num_materials,
     }
 
-    print('* Writing {:s}...'.format(phantom.json_filename))
-    with open(phantom.json_filename, 'w') as outfile:
-        json.dump(json_file_contents, outfile, indent=4)
-
-    return json_file_contents
+    print(f"* Writing {phantom.json_filename}...")
+    with open(phantom.json_filename, 'w') as f:
+        json.dump(json_contents, f, indent=4)
 
 
 def DICOM_to_voxelized_phantom(phantom):
+    """Main function to orchestrate the DICOM to voxelized phantom conversion.
 
-    # Initialize.
+    Args:
+        phantom: A configuration object containing all necessary parameters.
+    """
     phantom, dicom_filenames, volume_fraction_array, materials_dict = initialize(phantom)
-    dicom_filenames = sorted(dicom_filenames)
-    # Generate the volume fraction maps.
+
     volume_fraction_array = compute_volume_fraction_array(phantom, dicom_filenames, materials_dict, volume_fraction_array)
     
-    # Write the output files - a .json file and volume fraction files for each material.
     write_files(phantom, materials_dict, volume_fraction_array)
 
-    try:
-        # If the user has defined show_phantom as True, display the phantom.
-        if phantom.show_phantom:
- 
-            if  phantom.num_materials <= 3:                       # With 3 or fewer materials define a 1 by x grid
-                rows = 1
-                cols = phantom.num_materials
-            elif phantom.num_materials == 4:                      # With 4 materials define a 2x2 grid
-                rows = 2
-                cols = 2
-            elif phantom.num_materials <= 6:                      # With 5 or 6 materials define a 2x3 grid
-                rows = 2
-                cols = 3
-            # Need to add grids for 7-8 (2x4), 9-12 (3x4), 13-16 (4x4), and 17-25(5x5) materials. Beyond 25 is very unlikely to be useful or meaningful
+    if getattr(phantom, 'show_phantom', False):
+        num_materials = phantom.num_materials
+        if num_materials <= 3:
+            rows, cols = 1, num_materials
+        elif num_materials == 4:
+            rows, cols = 2, 2
+        else: # Default for > 4
+            rows, cols = 2, (num_materials + 1) // 2
 
-            # Define a plot with rows and axes defined above, all axes are linked for zooming purposes
-            fig, ax = plt.subplots(rows, cols, sharex=True, sharey=True)
-            tracker = []
-            for plot_num, material in enumerate(materials_dict['material_names']):
-                
-                # Identify the subplot
-                if phantom.num_materials <= 3:
-                    this_axis = ax[plot_num%cols]
-                else:
-                    col = plot_num%cols
-                    this_axis = ax[(phantom.num_materials - col) / rows, col]
+        fig, axes = plt.subplots(rows, cols, sharex=True, sharey=True, squeeze=False)
+        axes = axes.flatten()
+        trackers = []
+        for i, material in enumerate(materials_dict['material_names']):
+            ax = axes[i]
+            tracker = IndexTracker(ax, volume_fraction_array[material])
+            trackers.append(tracker)
+            fig.canvas.mpl_connect('scroll_event', tracker.on_scroll)
+            ax.set_title(material)
+        plt.show()
 
-                # Link this subplot to the tracker.
-                tracker.append(IndexTracker(this_axis,volume_fraction_array[material]))
-                
-                # Define event of scrolling to change the view slice.
-                fig.canvas.mpl_connect('scroll_event', tracker[plot_num].on_scroll)
-                
-                # Name the subplot as the material name.
-                this_axis.set_title(material)
-            plt.show()
-    except:
-        pass
 
-def run_from_config(config_filename):
-    config = source_cfg(config_filename)
-    DICOM_to_voxelized_phantom(fr'{config.phantom}')
+def run_from_config(config_filename: str):
+    """Loads a configuration file and runs the phantom conversion.
+
+    Args:
+        config_filename (str): Path to the configuration file.
+    """
+    cfg = source_cfg(config_filename)
+    DICOM_to_voxelized_phantom(cfg.phantom)
+
 
 if __name__ == "__main__":
-
     parser = ArgumentParser(
-                    prog='Dicom to Voxelized Phantom for XCIST',
-                    description='Converts noise free dicoms to XCIST based on a provided config file')
-    parser.add_argument('filename')
+        prog='Dicom to Voxelized Phantom for XCIST',
+        description='Converts DICOM series to an XCIST voxelized phantom based on a config file.'
+    )
+    parser.add_argument('filename', help='Path to the configuration file.')
     args = parser.parse_args()
-    # read in config file
-        # When integrating into CatSim the location of the phantom file needs to be passed with the call statement
     run_from_config(args.filename)

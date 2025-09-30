@@ -331,7 +331,7 @@ Results:\n
         if overwrite:
             self.clear_previous_results()
         results = self.results
-        patientids = [int(o.split('case_')[1]) for o in self.metadata.case_id if o not in results.get('case_id', []).to_list()]
+        patientids = [int(o.split('case_')[1]) for o in self.metadata.case_id if o not in list(results.get('case_id', []))]
         output = Path(self.metadata.iloc[0]['output_directory']).parent
         if parallel and not shutil.which("qsub"):
             print("qsub not found, running in serial mode.")

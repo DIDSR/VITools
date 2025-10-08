@@ -203,7 +203,7 @@ def compute_volume_fraction_array(phantom, dicom_filenames, materials_dict, volu
         dicom_path = os.path.join(phantom.dicom_path, filename)
         dcm_data = pydicom.dcmread(dicom_path)
 
-        hu_array = dcm_data.pixel_array.astype(np.float32) + int(dcm_data.RescaleIntercept)
+        hu_array = dcm_data.pixel_array.astype(np.float32).T + int(dcm_data.RescaleIntercept)
         volume_fraction_array['HU data'][i] = hu_array
 
         mu_array = (hu_array + 1000) * phantom.mu_water / 1000

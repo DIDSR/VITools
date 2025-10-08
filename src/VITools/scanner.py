@@ -384,7 +384,7 @@ class Scanner():
         Returns:
             tuple[int, int]: Recommended (startZ, endZ) in mm, as integers.
         """
-        img = self.phantom.get_CT_number_phantom()
+        img = np.array(self.phantom.get_CT_number_phantom())
         scout_profile = img.mean(axis=(1, 2))
         active_voxels = scout_profile > threshold
         if not np.any(active_voxels):

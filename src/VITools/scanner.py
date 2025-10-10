@@ -496,9 +496,10 @@ class Scanner():
         """
         self.xcist.cfg.protocol.mA = mA
         kVp_options = [70, 80, 90, 100, 110, 120, 130, 140]
+        kVp = int(kVp)
         if kVp not in kVp_options:
             raise ValueError(f'Selected kVP [{kVp}] not available, please choose from {kVp_options}')
-        self.xcist.cfg.protocol.spectrumFilename = f'tungsten_tar7.0_{int(kVp)}_filt.dat'
+        self.xcist.cfg.protocol.spectrumFilename = f'tungsten_tar7.0_{kVp}_filt.dat'
         self.kVp = kVp
 
         if views:

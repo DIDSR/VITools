@@ -110,8 +110,7 @@ Results:\n
             self.metadata.to_csv(input_csv, index=False)
         elif isinstance(input_csv, str | Path):
             self.metadata = pd.read_csv(input_csv)
-        self.csv_fname = input_csv
-        
+        self.csv_fname = input_csv  
 
     def clear_previous_results(self):
         """Removes output directories associated with each scan in the study.
@@ -305,7 +304,10 @@ Results:\n
         for idx in range(len(self.metadata)):
             output_dir = Path(self.metadata.iloc[idx]['output_directory'])
             if output_dir.exists():
-                results_files.extend(list(output_dir.rglob('metadata_*.csv')))
+                try:
+                    results_files.extend(list(output_dir.rglob('metadata_*.csv')))
+                except FileNotFoundError:
+                    continue
 
         if not results_files:
             return pd.DataFrame()

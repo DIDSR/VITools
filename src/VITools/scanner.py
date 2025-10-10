@@ -462,7 +462,7 @@ class Scanner():
         repr_str += f'\nProjections: {self.projections.shape}'
         return repr_str
 
-    def run_scan(self, mA: float = 200, kVp: float = 120,
+    def run_scan(self, mA: float = 200, kVp: int = 120,
                  startZ: float | None = None, endZ: float | None = None,
                  views: int | None = None, pitch: float = 0, bhc: bool | str = True):
         """Runs the CT simulation with the specified parameters.
@@ -470,7 +470,7 @@ class Scanner():
         Args:
             mA (float, optional): X-ray source milliamps. Higher mA reduces
                 noise. Defaults to 200.
-            kVp (float, optional): X-ray source potential. Affects beam energy
+            kVp (int, optional): X-ray source potential. Affects beam energy
                 and contrast. Must be one of [70, 80, ..., 140]. Defaults to 120.
             startZ (float | None, optional): Starting table position (mm) for
                 the scan. Defaults to the first calculated position.
@@ -498,7 +498,7 @@ class Scanner():
         kVp_options = [70, 80, 90, 100, 110, 120, 130, 140]
         if kVp not in kVp_options:
             raise ValueError(f'Selected kVP [{kVp}] not available, please choose from {kVp_options}')
-        self.xcist.cfg.protocol.spectrumFilename = f'tungsten_tar7.0_{kVp}_filt.dat'
+        self.xcist.cfg.protocol.spectrumFilename = f'tungsten_tar7.0_{int(kVp)}_filt.dat'
         self.kVp = kVp
 
         if views:

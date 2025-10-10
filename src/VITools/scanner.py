@@ -276,7 +276,7 @@ class Scanner():
             self.tempdir = None # type: ignore
         output_dir = Path(output_dir) / f'{phantom.patient_name}'
         if output_dir.exists():
-            rmtree(output_dir)
+            rmtree(output_dir, ignore_errors=True)
         output_dir.mkdir(exist_ok=True, parents=True)
         self.output_dir = output_dir
 

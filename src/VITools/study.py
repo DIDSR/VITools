@@ -311,7 +311,14 @@ Results:\n
 
         if not results_files:
             return pd.DataFrame()
-        return pd.concat([pd.read_csv(o) for o in results_files], ignore_index=True)
+
+        results_dfs = []
+        for o in results_files:
+            try:
+                results_dfs.append(pd.read_csv(o))
+            except pd.errors.EmptyDataError:
+                continue
+        return pd.concat(results_dfs, ignore_index=True)
 
     def run_all(self, parallel: bool = True, overwrite: bool = False) -> "Study":
         """Runs all scans defined in the study.

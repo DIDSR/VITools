@@ -79,7 +79,7 @@ Here is a complete example of how to create a simple phantom, simulate a scan, a
     img[mask] = 100  # Set sphere to a value like soft tissue
 
     # Define voxel spacings in mm (z, x, y)
-    spacings = (1.0, 0.5, 0.5)
+    spacings = (0.5, 0.5, 0.5)
     phantom = Phantom(img, spacings, patient_name="TestSphere", patientid=1)
 
     # 2. Initialize the Scanner with the phantom
@@ -89,7 +89,7 @@ Here is a complete example of how to create a simple phantom, simulate a scan, a
 
     # 3. Run the scan and reconstruction
     print("Running the simulation...")
-    scanner.run_scan(mA=200, kVp=120)
+    scanner.run_scan(mA=200, kVp=120, views=100)
     scanner.run_recon(fov=250, slice_thickness=1.0)
 
     # 4. Save the output to DICOM

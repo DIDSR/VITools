@@ -1,20 +1,20 @@
 Welcome to VITools's documentation!
 ===================================
 
-.. image:: https://github.com/DIDSR/virtual-imaging-trials/actions/workflows/build.yml/badge.svg
-   :target: https://github.com/DIDSR/virtual-imaging-trials/actions/workflows/build.yml
+.. image:: https://github.com/DIDSR/VITools/actions/workflows/build.yml/badge.svg
+   :target: https://github.com/DIDSR/VITools/actions/workflows/build.yml
    :alt: Build Status
 
-.. image:: https://img.shields.io/pypi/v/virtual-imaging-trials.svg
-   :target: https://pypi.org/project/virtual-imaging-trials/
+.. image:: https://img.shields.io/pypi/v/VITools.svg
+   :target: https://pypi.org/project/VITools/
    :alt: PyPI
 
-.. image:: https://img.shields.io/conda/vn/conda-forge/virtual-imaging-trials.svg
-   :target: https://anaconda.org/conda-forge/virtual-imaging-trials
+.. image:: https://img.shields.io/conda/vn/conda-forge/VITools.svg
+   :target: https://anaconda.org/conda-forge/VITools
    :alt: Conda-Forge
 
-.. image:: https://img.shields.io/pypi/l/virtual-imaging-trials.svg
-   :target: https://github.com/DIDSR/virtual-imaging-trials/blob/main/LICENSE
+.. image:: https://img.shields.io/pypi/l/VITools.svg
+   :target: https://github.com/DIDSR/VITools/blob/main/LICENSE
    :alt: License
 
 Tools for running virtual imaging trials.
@@ -23,7 +23,7 @@ Installation
 ------------
 .. code-block::
 
-   pip install virtual-imaging-trials
+   pip install VITools
 
 Core Concepts
 -------------

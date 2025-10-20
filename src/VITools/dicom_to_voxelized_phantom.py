@@ -139,8 +139,8 @@ def initialize(phantom) -> tuple:
     suffix = f"_{phantom.num_cols}x{phantom.num_rows}x{phantom.num_slices}.raw"
     mu_list = [GetMu(mat, phantom.mu_energy)[0] for mat in phantom.materials]
 
-    volume_fraction_array = {mat: np.zeros((phantom.num_slices, phantom.num_cols, phantom.num_rows), dtype=np.float32) for mat in phantom.materials}
-    volume_fraction_array['HU data'] = np.zeros((phantom.num_slices, phantom.num_cols, phantom.num_rows), dtype=np.float32)
+    volume_fraction_array = {mat: np.zeros((phantom.num_slices, phantom.num_rows, phantom.num_cols), dtype=np.float32) for mat in phantom.materials}
+    volume_fraction_array['HU data'] = np.zeros((phantom.num_slices, phantom.num_rows, phantom.num_cols), dtype=np.float32)
 
     volume_fraction_filenames = [f"{base_fname}{mat}{suffix}" for mat in phantom.materials]
     volume_fraction_filenames.append(f"{base_fname}HU_data{suffix}")
@@ -203,7 +203,7 @@ def compute_volume_fraction_array(phantom, dicom_filenames, materials_dict, volu
         dicom_path = os.path.join(phantom.dicom_path, filename)
         dcm_data = pydicom.dcmread(dicom_path)
 
-        hu_array = dcm_data.pixel_array.astype(np.float32).T + int(dcm_data.RescaleIntercept)
+        hu_array = dcm_data.pixel_array.astype(np.float32) + int(dcm_data.RescaleIntercept)
         volume_fraction_array['HU data'][i] = hu_array
 
         mu_array = (hu_array + 1000) * phantom.mu_water / 1000

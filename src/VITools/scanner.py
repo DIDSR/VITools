@@ -276,7 +276,7 @@ class Scanner():
             self.tempdir = None # type: ignore
         output_dir = Path(output_dir) / f'{phantom.patient_name}'
         if output_dir.exists():
-            rmtree(output_dir)
+            rmtree(output_dir, ignore_errors=True)
         output_dir.mkdir(exist_ok=True, parents=True)
         self.output_dir = output_dir
 
@@ -337,7 +337,8 @@ class Scanner():
         """
         if filename in available_scanners:
             filename = install_path / 'defaults' / filename
-        self.xcist.cfg = xc.source_cfg(str(filename), self.xcist.cfg)
+        cfg = xc.source_cfg(filename)
+        self.xcist.cfg.scanner = cfg.scanner
         self.scanner_model = Path(filename).name
         return self
 
@@ -383,7 +384,7 @@ class Scanner():
         Returns:
             tuple[int, int]: Recommended (startZ, endZ) in mm, as integers.
         """
-        img = self.phantom.get_CT_number_phantom()
+        img = np.array(self.phantom.get_CT_number_phantom())
         scout_profile = img.mean(axis=(1, 2))
         active_voxels = scout_profile > threshold
         if not np.any(active_voxels):
@@ -461,7 +462,7 @@ class Scanner():
         repr_str += f'\nProjections: {self.projections.shape}'
         return repr_str
 
-    def run_scan(self, mA: float = 200, kVp: float = 120,
+    def run_scan(self, mA: float = 200, kVp: int = 120,
                  startZ: float | None = None, endZ: float | None = None,
                  views: int | None = None, pitch: float = 0, bhc: bool | str = True):
         """Runs the CT simulation with the specified parameters.
@@ -469,7 +470,7 @@ class Scanner():
         Args:
             mA (float, optional): X-ray source milliamps. Higher mA reduces
                 noise. Defaults to 200.
-            kVp (float, optional): X-ray source potential. Affects beam energy
+            kVp (int, optional): X-ray source potential. Affects beam energy
                 and contrast. Must be one of [70, 80, ..., 140]. Defaults to 120.
             startZ (float | None, optional): Starting table position (mm) for
                 the scan. Defaults to the first calculated position.
@@ -495,6 +496,7 @@ class Scanner():
         """
         self.xcist.cfg.protocol.mA = mA
         kVp_options = [70, 80, 90, 100, 110, 120, 130, 140]
+        kVp = int(kVp)
         if kVp not in kVp_options:
             raise ValueError(f'Selected kVP [{kVp}] not available, please choose from {kVp_options}')
         spectrum_file = f'tungsten_tar7.0_{int(kVp)}_filt.dat'

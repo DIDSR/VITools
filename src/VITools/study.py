@@ -105,8 +105,12 @@ Results:\n
         """
         if isinstance(input_csv, pd.DataFrame):
             self.metadata = input_csv
-        elif isinstance(input_csv, (str, Path)):
+            input_csv = Path('study_plan.csv').absolute()
+            print(f'study plan saved to: {input_csv}')
+            self.metadata.to_csv(input_csv, index=False)
+        elif isinstance(input_csv, str | Path):
             self.metadata = pd.read_csv(input_csv)
+        self.csv_fname = input_csv  
 
     def clear_previous_results(self):
         """Removes output directories associated with each scan in the study.
@@ -300,11 +304,21 @@ Results:\n
         for idx in range(len(self.metadata)):
             output_dir = Path(self.metadata.iloc[idx]['output_directory'])
             if output_dir.exists():
-                results_files.extend(list(output_dir.rglob('metadata_*.csv')))
+                try:
+                    results_files.extend(list(output_dir.rglob('metadata_*.csv')))
+                except FileNotFoundError:
+                    continue
 
         if not results_files:
             return pd.DataFrame()
-        return pd.concat([pd.read_csv(o) for o in results_files], ignore_index=True)
+
+        results_dfs = []
+        for o in results_files:
+            try:
+                results_dfs.append(pd.read_csv(o))
+            except pd.errors.EmptyDataError:
+                continue
+        return pd.concat(results_dfs, ignore_index=True)
 
     def run_all(self, parallel: bool = True, overwrite: bool = False) -> "Study":
         """Runs all scans defined in the study.
@@ -325,53 +339,57 @@ Results:\n
         """
         if overwrite:
             self.clear_previous_results()
-
-        completed_cases = self.results.get('case_id', pd.Series(dtype=str))
-        pending_scans = self.metadata[~self.metadata.case_id.isin(completed_cases)]
-        if pending_scans.empty:
-            print("All scans already completed.")
-            return self
-
-        patientids = pending_scans.index.tolist()
+        results = self.results
+        patientids = [int(o.split('case_')[1]) for o in self.metadata.case_id if o not in list(results.get('case_id', []))]
         output = Path(self.metadata.iloc[0]['output_directory']).parent
-        csv_fname = output / f"{output.name}_study_plan.csv"
+        if parallel and not shutil.which("qsub"):
+            print("qsub not found, running in serial mode.")
+            parallel = False
 
-        if parallel and shutil.which("qsub"):
-            print(f"Submitting {len(patientids)} jobs for parallel execution.")
-            self.metadata.to_csv(csv_fname, index=False)
+        try:
+            patientids = [int(os.environ['SLURM_ARRAY_TASK_ID']) - 1]
+            print(f'Now running from job {patientids[0] + 1}')
+        except KeyError:
+            pass
+
+        log_dir = None
+        if parallel:
             pyenv = Path(sys.executable).parent / 'activate'
             now = datetime.now()
-            log_name = 'VIT-BATCH_' + now.strftime("%Y-%m-%d_%H-%M")
+            log_name = 'VIT-BATCH_' + now.strftime("%m-%d-%Y_%H-%M")
             log_dir = output.absolute() / 'logs' / log_name
             log_dir.mkdir(exist_ok=True, parents=True)
             run(['bash', str(src_dir / 'run_batchmode.sh'),
-                 str(pyenv),
+                 pyenv,
                  str(src_dir / 'batchmode_CT_dataset_pipeline.sge'),
-                 str(csv_fname.absolute()),
-                 str(log_dir)], check=True)
-
-            with tqdm(total=len(patientids), desc='Scans completed in parallel') as pbar:
-                scans_completed_count = 0
-                while scans_completed_count < len(patientids):
-                    sleep(5)
-                    current_completed = self.get_scans_completed()
-                    newly_completed = len(current_completed[current_completed.case_id.isin(pending_scans.case_id)].case_id.unique())
-                    pbar.update(newly_completed - scans_completed_count)
-                    scans_completed_count = newly_completed
+                 f'{self.csv_fname}',
+                 log_dir])
         else:
-            if parallel:
-                print("qsub not found, running in serial mode.")
-            for patientid in tqdm(patientids, desc="Running scans serially"):
+            for patientid in tqdm(patientids):
                 results = self.run_study(patientid)
-                series = self.metadata.loc[patientid]
+                series = self.metadata.iloc[patientid]
                 output_directory = Path(series.output_directory)
-                results_path = output_directory / f'metadata_{patientid}.csv'
-                print(f"Saving intermediate results to {results_path}")
-                results.to_csv(results_path, index=False)
-                if series.get('remove_raw', True):
-                    sim_dir = output_directory / 'simulations'
-                    if sim_dir.exists():
-                        shutil.rmtree(sim_dir)
+                print(f"saving intermediate results to {output_directory / f'metadata_{patientid}.csv'}")
+                results.to_csv(output_directory / f'metadata_{patientid}.csv',
+                               index=False)
+                if series.remove_raw:
+                    shutil.rmtree(output_directory / series.phantom)
+                    [os.remove(o) for o in Path('.').rglob('VIT-BATCH*') if
+                     o.is_file()]
+
+        output_df = self.get_scans_completed()
+        scans_queued = len(patientids)
+        output_df = self.get_scans_completed()
+        scans_completed = len(np.unique(output_df.get('case_id', [])))
+        with tqdm(total=scans_queued, desc='Scans completed in parallel') as pbar:
+            while scans_completed < scans_queued:
+                sleep(1)
+                output_df = self.get_scans_completed()
+                if len(np.unique(output_df.get('case_id', []))) > scans_completed:
+                    pbar.update(
+                        len(np.unique(output_df.get('case_id', []))) - scans_completed
+                        )
+                    scans_completed = len(np.unique(output_df.get('case_id', [])))
         return self
 
     @property

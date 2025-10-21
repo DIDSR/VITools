@@ -139,8 +139,8 @@ def initialize(phantom) -> tuple:
     suffix = f"_{phantom.num_cols}x{phantom.num_rows}x{phantom.num_slices}.raw"
     mu_list = [GetMu(mat, phantom.mu_energy)[0] for mat in phantom.materials]
 
-    volume_fraction_array = {mat: np.zeros((phantom.num_slices, phantom.num_cols, phantom.num_rows), dtype=np.float32) for mat in phantom.materials}
-    volume_fraction_array['HU data'] = np.zeros((phantom.num_slices, phantom.num_cols, phantom.num_rows), dtype=np.float32)
+    volume_fraction_array = {mat: np.zeros((phantom.num_slices, phantom.num_rows, phantom.num_cols), dtype=np.float32) for mat in phantom.materials}
+    volume_fraction_array['HU data'] = np.zeros((phantom.num_slices, phantom.num_rows, phantom.num_cols), dtype=np.float32)
 
     volume_fraction_filenames = [f"{base_fname}{mat}{suffix}" for mat in phantom.materials]
     volume_fraction_filenames.append(f"{base_fname}HU_data{suffix}")

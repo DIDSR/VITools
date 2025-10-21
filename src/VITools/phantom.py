@@ -24,11 +24,14 @@ def resize(phantom: np.ndarray, shape: tuple, **kwargs) -> np.ndarray:
     match the corresponding dimension in `shape`, and scales other dimensions
     proportionally.
 
+    mode = 'nearest' is useful for downsizing without interpolation errors
+
     Args:
         phantom (np.ndarray): The phantom image array to resize.
         shape (tuple): The target shape for the phantom.
         **kwargs: Additional keyword arguments to be passed to
-            `monai.transforms.Resize`.
+            `monai.transforms.Resize`. 
+            E.g.: `from monai.transforms import Resize; Resize?`
 
     Returns:
         np.ndarray: The resized phantom array.

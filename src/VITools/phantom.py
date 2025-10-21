@@ -15,7 +15,6 @@ import gecatsim as xc
 
 from . import dicom_to_voxelized_phantom
 
-
 def resize(phantom: np.ndarray, shape: tuple, **kwargs) -> np.ndarray:
     """Resizes a phantom to a new shape while maintaining aspect ratio.
 

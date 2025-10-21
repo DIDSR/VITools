@@ -436,13 +436,14 @@ Results:\n
                                output_dir=series.output_directory)
 
         scan_coverage = series.scan_coverage
-        if pd.isna(scan_coverage) or scan_coverage == 'dynamic':
+        if isinstance(scan_coverage, tuple | list):
+            startZ, endZ = scan_coverage
+        elif pd.isna(scan_coverage) or scan_coverage == 'dynamic':
             startZ, endZ = self.scanner.recommend_scan_range()
         elif isinstance(scan_coverage, str):
             startZ, endZ = ast.literal_eval(scan_coverage)
-        else: # tuple or list
-            startZ, endZ = scan_coverage
-
+        else:
+            raise ValueError(f'scan_coverage datatype not recognized, not list, dataframe or str: {scan_coverage}')
         self.scanner.run_scan(startZ=startZ, endZ=endZ,
                               views=int(series.views),
                               mA=series.mA, kVp=series.kVp, pitch=series.pitch)

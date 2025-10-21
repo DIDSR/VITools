@@ -28,12 +28,22 @@ Installation
 Core Concepts
 -------------
 A virtual imaging trial is composed of three primary components:
+
 1. a `Phantom`
 2. a `Scanner`
 3. a `Study`
 
+
+Phantom
+~~~~~~~
 The `Phantom` class is a container for a numpy array and some metadata, like the patient's age and the voxel spacings.
+
+Scanner
+~~~~~~~
 A `Scanner` takes a `Phantom` and simulates a CT scan, generating projection data and a reconstructed image.
+
+Study
+~~~~~
 A `Study` takes a `Phantom` and a `Scanner` and runs a series of simulations, varying parameters like the phantom's position, the scanner's settings, and the reconstruction parameters.
 
 

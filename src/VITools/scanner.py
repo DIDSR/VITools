@@ -499,7 +499,11 @@ class Scanner():
         kVp = int(kVp)
         if kVp not in kVp_options:
             raise ValueError(f'Selected kVP [{kVp}] not available, please choose from {kVp_options}')
-        self.xcist.cfg.protocol.spectrumFilename = f'tungsten_tar7.0_{kVp}_filt.dat'
+        spectrum_file = f'tungsten_tar7.0_{int(kVp)}_filt.dat'
+        spectrum_path = Path(xc.__file__).parent / 'spectrum' / spectrum_file
+        if not spectrum_path.exists():
+            raise FileNotFoundError(f"Spectrum file not found: {spectrum_path}")
+        self.xcist.cfg.protocol.spectrumFilename = str(spectrum_path)
         self.kVp = kVp
 
         if views:

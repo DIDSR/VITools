@@ -45,7 +45,7 @@ def get_effective_diameter(ground_truth_mu: np.ndarray, pixel_width_mm: float) -
     return 2 * np.sqrt(A / np.pi)
 
 
-def scan_CTP404(test_dir: Path, views: int = 100, thickness: int = 1, increment: int = 1) -> Scanner:
+def scan_CTP404(test_dir: Path, ctp404_dcm_path: Path, views: int = 100, thickness: int = 1, increment: int = 1) -> Scanner:
     """Runs a standardized scan on the CTP404 phantom.
 
     This helper function sets up a `Scanner` with the CTP404 phantom,
@@ -68,6 +68,16 @@ def scan_CTP404(test_dir: Path, views: int = 100, thickness: int = 1, increment:
     result_dir = test_dir / 'test_result'
     if result_dir.exists():
         rmtree(result_dir)
+    dcm = ctp404_dcm_path
+
+    img = np.repeat(read_dicom(dcm)[None], 11, axis=0)
+    diameter_pixels = get_effective_diameter(img[0], 1)
+    known_diameter_mm = 200
+    fov_mm = img.shape[-1] * known_diameter_mm / diameter_pixels
+    dx = fov_mm / img.shape[-1]
+    dy = dx
+    dz = 1.0
+    phantom = Phantom(img, spacings=[dz, dx, dy])
 
     ct = Scanner(phantom, 'Siemens_DefinitionFlash', output_dir=result_dir)
     ct.run_scan(views=views)
@@ -75,14 +85,14 @@ def scan_CTP404(test_dir: Path, views: int = 100, thickness: int = 1, increment:
     return ct
 
 
-def test_scan_shape():
+def test_scan_shape(ctp404_dcm_path):
     """Tests the output shapes of a basic XCIST simulation.
 
     Verifies that the reconstructed volume, projection data, and the number
     of generated DICOM files have the expected dimensions after a standard scan.
     """
     views = 100
-    ct = scan_CTP404(test_dir, views, increment=7)
+    ct = scan_CTP404(test_dir, ctp404_dcm_path, views, increment=7)
     dcms = ct.write_to_dicom(ct.output_dir / 'test.dcm')
     dcms_in_dir = list(ct.output_dir.glob('*.dcm'))
     assert ct.recon.mean() > -800

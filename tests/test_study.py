@@ -18,7 +18,7 @@ if test_dir.exists():
 test_dir.mkdir(parents=True)
 
 
-def test_study():
+def test_study(monkeypatch):
     """Tests the core functionalities of the Study class.
 
     This test verifies several key features of the `Study` class:
@@ -30,9 +30,10 @@ def test_study():
         to a new study instance and runs it.
     5.  It checks for equality between the results of the first two runs.
     """
-    if len(get_available_phantoms()) < 1:
-        raise RuntimeError('No phantom plugins loaded, please run the following to install some simple IQ phantoms: `pip install git+https://github.com/DIDSR/InSilicoIQ.git`')
-    input_df = Study.generate_from_distributions(phantoms=list(get_available_phantoms().keys()),
+    from VITools.phantom import Phantom
+    import numpy as np
+    monkeypatch.setattr('VITools.study.get_available_phantoms', lambda: {'TestPhantom': lambda: Phantom(np.zeros((10,10,10)))})
+    input_df = Study.generate_from_distributions(phantoms=['TestPhantom'],
                                                  study_count=2,
                                                  views=[20],
                                                  scan_coverage=(0, 7))

@@ -1,8 +1,8 @@
 import pytest
 from pathlib import Path
 import pandas as pd
+import numpy as np
 from VITools.study import Study
-from .utils import create_circle_phantom
 from VITools.phantom import Phantom
 import shutil
 
@@ -31,9 +31,9 @@ def test_clear_previous_results(output_dir):
     study.clear_previous_results()
     assert not dummy_dir.exists()
 
-@pytest.mark.usefixtures("register_test_phantom")
-def test_generate_from_distributions():
+def test_generate_from_distributions(monkeypatch):
     """Test the generate_from_distributions method."""
+    monkeypatch.setattr('VITools.study.get_available_phantoms', lambda: {'TestPhantom': lambda: Phantom(np.zeros((10,10,10)))})
     phantoms = ["TestPhantom"]
     df = Study.generate_from_distributions(phantoms, study_count=5, scan_coverage='dynamic')
     assert len(df) == 5
@@ -42,9 +42,9 @@ def test_generate_from_distributions():
     df = Study.generate_from_distributions(phantoms, study_count=2, scan_coverage=[0, 1])
     assert df["scan_coverage"].iloc[0] == [0.0, 1.0]
 
-@pytest.mark.usefixtures("register_test_phantom")
-def test_append(output_dir):
+def test_append(output_dir, monkeypatch):
     """Test the append method."""
+    monkeypatch.setattr('VITools.study.get_available_phantoms', lambda: {'TestPhantom': lambda: Phantom(np.zeros((10,10,10)))})
     study = Study()
     assert len(study) == 0
 
@@ -57,18 +57,18 @@ def test_append(output_dir):
     study.append(df)
     assert len(study) == 3
 
-@pytest.mark.usefixtures("register_test_phantom")
-def test_run_all_serial(output_dir):
+def test_run_all_serial(output_dir, monkeypatch):
     """Test the run_all method in serial mode."""
+    monkeypatch.setattr('VITools.study.get_available_phantoms', lambda: {'TestPhantom': lambda: Phantom(np.zeros((10,10,10)))})
     # This test is slow, so we only run a single case
     df = Study.generate_from_distributions(["TestPhantom"], study_count=1, output_directory=output_dir, slice_increment=[7], views=[10])
     study = Study(df)
     study.run_all(parallel=False, overwrite=True)
     assert len(study.results) == 1
 
-@pytest.mark.usefixtures("register_test_phantom")
-def test_get_images(output_dir):
+def test_get_images(output_dir, monkeypatch):
     """Test the get_images method."""
+    monkeypatch.setattr('VITools.study.get_available_phantoms', lambda: {'TestPhantom': lambda: Phantom(np.zeros((10,10,10)))})
     df = Study.generate_from_distributions(["TestPhantom"], study_count=1, output_directory=output_dir, slice_increment=[7], views=[10])
     study = Study(df)
     study.run_all(parallel=False, overwrite=True)

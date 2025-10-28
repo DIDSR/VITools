@@ -142,5 +142,3 @@ def test_recon_length():
     scanner.run_recon(slice_thickness=1, slice_increment=1)
     assert len(scanner.recon) == 14, "Recon length should be 14 for double aperture scan"
 
-if __name__ == '__main__':
-    test_scan_shape()

@@ -2,8 +2,7 @@
 #SBATCH --mem=16G             # memory limit
 PY_ENV=$1
 export LOG_DIR=$2
-CASES=$3
-INPUT=$4
+INPUT=$3
 
 mkdir -p $LOG_DIR
 

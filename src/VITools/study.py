@@ -367,7 +367,7 @@ Results:\n
         else:
             for patientid in tqdm(patientids):
                 results = self.run_study(patientid)
-                series = self.metadata.iloc[patientid]
+                series = self.metadata[self.metadata.case_id  == f'case_{patientid:04d}'].iloc[0]
                 output_directory = Path(series.output_directory)
                 print(f"saving intermediate results to {output_directory / f'metadata_{patientid}.csv'}")
                 results.to_csv(output_directory / f'metadata_{patientid}.csv',
@@ -407,7 +407,7 @@ Results:\n
         Returns:
             Phantom: An initialized instance of the specified phantom class.
         """
-        series = self.metadata.iloc[patientid]
+        series = self.metadata[self.metadata.case_id  == f'case_{patientid:04d}'].iloc[0]
         available_phantoms = get_available_phantoms()
         return available_phantoms[series.phantom]()
 
@@ -430,7 +430,7 @@ Results:\n
             pd.DataFrame: A DataFrame containing metadata for the generated
                 DICOM files, including file paths.
         """
-        series = self.metadata.iloc[patientid]
+        series = self.metadata[self.metadata.case_id  == f'case_{patientid:04d}'].iloc[0]
         phantom = self.load_phantom(patientid)
         self.scanner = Scanner(phantom, series.scanner_model,
                                output_dir=series.output_directory)

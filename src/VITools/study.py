@@ -105,7 +105,8 @@ Results:\n
         """
         if isinstance(input_csv, pd.DataFrame):
             self.metadata = input_csv
-            input_csv = Path('study_plan.csv').absolute()
+            study_ids = '-'.join(list(map(lambda o: o.split('case_')[-1], [input_csv.case_id.iloc[0], input_csv.case_id.iloc[-1]])))
+            input_csv = Path(f'study_plan_{study_ids}.csv').absolute()
             print(f'study plan saved to: {input_csv}')
             self.metadata.to_csv(input_csv, index=False)
         elif isinstance(input_csv, str | Path):

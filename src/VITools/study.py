@@ -368,6 +368,7 @@ Results:\n
                  log_dir])
         else:
             for patientid in tqdm(patientids):
+                print(f'Now running: case {patientid}')
                 results = self.run_study(patientid)
                 series = self.metadata[self.metadata.case_id  == f'case_{patientid:04d}'].iloc[0]
                 output_directory = Path(series.output_directory)

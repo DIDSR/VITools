@@ -179,9 +179,19 @@ def test_scan_logs_for_errors():
         f.write("EXIT_STATUS=0\n")
         f.write("ELAPSED_TIME=69\n\n")
         f.write("==== end of job  (0) at: Wed Dec 3 07:22:25 PM EST 2025 on host bc046\n")
-
+    
+    # Log file for a process that was killed
+    with open(os.path.join(dummy_dir, "task_4.log"), "w") as f:
+        f.write("Allocating a lot of memory...\n")
+        f.write("Still running...\n")
+        f.write("Killed\n") # The file ends with "Killed
+        f.write("+ set +x\n")
+        f.write("EXIT_STATUS=0\n")
+        f.write("ELAPSED_TIME=69\n\n")
+        f.write("==== end of job  (0) at: Wed Dec 3 07:22:25 PM EST 2025 on host bc046\n")
+    
     # Scan the created directory
     errors = scan_logs_for_errors(dummy_dir)
-    assert len(errors) == 2
+    assert len(errors) == 3
     # Clean up the dummy directory and files
     rmtree(dummy_dir)

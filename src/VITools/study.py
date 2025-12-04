@@ -83,12 +83,12 @@ def scan_logs_for_errors(directory_path, verbose=True):
                         in_traceback = False
                         # Check each line for the start of a traceback
                         for i, line in enumerate(lines):
-                            if "Traceback (most recent call last):" in line:
+                            if ("Traceback (most recent call last):") in line or ("Killed" in line):
                                 in_traceback = True
                                 # Once traceback is found, the rest of the file is the error
                                 error_lines = [l.strip() for l in lines[i:] if l.strip()]
                                 break
-                        
+
                         if in_traceback and error_lines:
                             # The last line of the traceback is typically the error message
                             error_message = error_lines[-5]

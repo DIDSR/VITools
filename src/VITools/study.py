@@ -401,8 +401,8 @@ Results:\n
             parallel = False
 
         try:
-            patientids = [int(os.environ['SLURM_ARRAY_TASK_ID']) - 1]
-            print(f'Now running from job {patientids[0] + 1}')
+            patientids = [int(os.environ['SLURM_ARRAY_TASK_ID'])]
+            print(f'Now running from job {patientids[0]}')
         except KeyError:
             pass
 

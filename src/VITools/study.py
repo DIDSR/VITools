@@ -10,6 +10,7 @@ The module also includes a plugin system for discovering available phantom
 types and a command-line interface for running studies.
 """
 import os
+import re
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -53,6 +54,56 @@ def get_available_phantoms() -> dict[str, type[Phantom]]:
         if result_dict:  # Check if the plugin returned a non-empty dict
             discovered_phantom_classes.update(result_dict)
     return discovered_phantom_classes
+
+
+def scan_logs_for_errors(directory_path):
+    """
+    Scans a directory for log files (e.g., task_0.log to task_4999.log),
+    prints which log files have a raised error, and copies the error
+    message raised in that log file.
+
+    Args:
+        directory_path (str): The path to the directory containing the log files.
+    """
+    print(f"Scanning directory: {directory_path}\n")
+    
+    # Regex to match the log file pattern
+    log_file_pattern = re.compile(r"task_\d+\.log")
+    
+    try:
+        # Get a list of all files and directories in the specified directory
+        with os.scandir(directory_path) as entries:
+            for entry in entries:
+                # Check if it's a file and if it matches the log file pattern
+                if entry.is_file() and log_file_pattern.match(entry.name):
+                    log_file_path = entry.path
+                    try:
+                        with open(log_file_path, 'r') as f:
+                            lines = f.readlines()
+                        
+                        error_lines = []
+                        in_traceback = False
+                        # Check each line for the start of a traceback
+                        for i, line in enumerate(lines):
+                            if "Traceback (most recent call last):" in line:
+                                in_traceback = True
+                                # Once traceback is found, the rest of the file is the error
+                                error_lines = [l.strip() for l in lines[i:] if l.strip()]
+                                break
+                        
+                        if in_traceback and error_lines:
+                            # The last line of the traceback is typically the error message
+                            error_message = error_lines[-5]
+                            print(f"--- ERROR FOUND IN: {entry.name} ---")
+                            print(f"Error Message: {error_message}\n")
+
+                    except Exception as e:
+                        print(f"Could not read file {entry.name}. Reason: {e}")
+
+    except FileNotFoundError:
+        print(f"Error: Directory not found at '{directory_path}'")
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
 
 
 class Study:
@@ -387,6 +438,7 @@ Results:\n
         with tqdm(total=scans_queued, desc='Scans completed in parallel') as pbar:
             while scans_completed < scans_queued:
                 sleep(1)
+                scan_logs_for_errors(log_dir)
                 output_df = self.get_scans_completed()
                 if len(np.unique(output_df.get('case_id', []))) > scans_completed:
                     pbar.update(

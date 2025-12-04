@@ -64,9 +64,7 @@ def scan_logs_for_errors(directory_path):
 
     Args:
         directory_path (str): The path to the directory containing the log files.
-    """
-    print(f"Scanning directory: {directory_path}\n")
-    
+    """    
     # Regex to match the log file pattern
     log_file_pattern = re.compile(r"task_\d+\.log")
     

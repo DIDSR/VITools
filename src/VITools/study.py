@@ -56,7 +56,7 @@ def get_available_phantoms() -> dict[str, type[Phantom]]:
     return discovered_phantom_classes
 
 
-def scan_logs_for_errors(directory_path):
+def scan_logs_for_errors(directory_path, verbose=True):
     """
     Scans a directory for log files (e.g., task_0.log to task_4999.log),
     prints which log files have a raised error, and copies the error
@@ -67,7 +67,7 @@ def scan_logs_for_errors(directory_path):
     """    
     # Regex to match the log file pattern
     log_file_pattern = re.compile(r"task_\d+\.log")
-    
+    errors = dict()
     try:
         # Get a list of all files and directories in the specified directory
         with os.scandir(directory_path) as entries:
@@ -92,8 +92,10 @@ def scan_logs_for_errors(directory_path):
                         if in_traceback and error_lines:
                             # The last line of the traceback is typically the error message
                             error_message = error_lines[-5]
-                            print(f"--- ERROR FOUND IN: {entry.name} ---")
-                            print(f"Error Message: {error_message}\n")
+                            errors[entry.name] = error_message
+                            if verbose:
+                                print(f"--- ERROR FOUND IN: {entry.name} ---")
+                                print(f"Error Message: {error_message}\n")
 
                     except Exception as e:
                         print(f"Could not read file {entry.name}. Reason: {e}")
@@ -102,6 +104,7 @@ def scan_logs_for_errors(directory_path):
         print(f"Error: Directory not found at '{directory_path}'")
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
+    return errors
 
 
 class Study:
@@ -433,16 +436,22 @@ Results:\n
         scans_queued = len(patientids)
         output_df = self.get_scans_completed()
         scans_completed = len(np.unique(output_df.get('case_id', [])))
+        errors = {}
         with tqdm(total=scans_queued, desc='Scans completed in parallel') as pbar:
             while scans_completed < scans_queued:
                 sleep(1)
-                scan_logs_for_errors(log_dir)
+                temp_errors = scan_logs_for_errors(log_dir, verbose=False)
                 output_df = self.get_scans_completed()
                 if len(np.unique(output_df.get('case_id', []))) > scans_completed:
                     pbar.update(
                         len(np.unique(output_df.get('case_id', []))) - scans_completed
                         )
                     scans_completed = len(np.unique(output_df.get('case_id', [])))
+                if len(temp_errors) > len(errors):
+                    errors = temp_errors
+                    for task_id in errors:
+                        print(f"--- ERROR FOUND IN: {task_id} ---")
+                        print(f"Error Message: {errors[task_id]}\n")
         return self
 
     @property

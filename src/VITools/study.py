@@ -471,6 +471,10 @@ Results:\n
         """
         series = self.metadata[self.metadata.case_id  == f'case_{patientid:04d}'].iloc[0]
         available_phantoms = get_available_phantoms()
+        if series.phantom in available_phantoms:
+            print(f'loading phantom: {series.phantom}')
+        else:
+            raise ValueError(f'phantom {series.phantom} not in `available_phantoms`, please see `get_available_phantoms()`')
         return available_phantoms[series.phantom]()
 
     def run_study(self, patientid: int = 0) -> pd.DataFrame:

@@ -10,13 +10,15 @@ can correctly:
 """
 from pathlib import Path
 from shutil import rmtree
-from VITools import Study, get_available_phantoms
+import os
+
 import pytest
 import pandas as pd
 import numpy as np
-from VITools.study import Study
+
+from VITools import get_available_phantoms
+from VITools.study import Study, scan_logs_for_errors
 from VITools.phantom import Phantom
-import shutil
 
 test_dir = Path('tests/results').absolute()
 if test_dir.exists():
@@ -69,11 +71,13 @@ def test_study():
 def output_dir(tmp_path):
     return tmp_path
 
+
 def test_repr():
     """Test the __repr__ method of the Study class."""
     study = Study()
     assert "Input metadata" in repr(study)
     assert "Results" in repr(study)
+
 
 def test_clear_previous_results(output_dir):
     """Test the clear_previous_results method."""
@@ -90,6 +94,7 @@ def test_clear_previous_results(output_dir):
     study.clear_previous_results()
     assert not dummy_dir.exists()
 
+
 def test_generate_from_distributions():
     """Test the generate_from_distributions method."""
     phantoms = ["Water Phantom"]
@@ -99,6 +104,7 @@ def test_generate_from_distributions():
 
     df = Study.generate_from_distributions(phantoms, study_count=2, scan_coverage=[0, 1])
     assert df["scan_coverage"].iloc[0] == [0.0, 1.0]
+
 
 def test_append(output_dir):
     """Test the append method."""
@@ -114,6 +120,7 @@ def test_append(output_dir):
     study.append(df)
     assert len(study) == 3
 
+
 def test_run_all_serial(output_dir):
     """Test the run_all method in serial mode."""
     # This test is slow, so we only run a single case
@@ -122,6 +129,7 @@ def test_run_all_serial(output_dir):
     study.run_all(parallel=False, overwrite=True)
     assert len(study.results) == 1
 
+
 def test_get_images(output_dir):
     """Test the get_images method."""
     df = Study.generate_from_distributions(["Water Phantom"], study_count=1, output_directory=output_dir, slice_increment=[7], views=[10], scan_coverage=[0, 1])
@@ -129,3 +137,51 @@ def test_get_images(output_dir):
     study.run_all(parallel=False, overwrite=True)
     images = study.get_images(patientid=0)
     assert images.shape == (1, 512, 512)
+
+
+def test_scan_logs_for_errors():
+    """Test the scan_logs_for_errors"""
+    # Create a dummy directory and some log files for demonstration
+    dummy_dir = "test_logs"
+    os.makedirs(dummy_dir, exist_ok=True)
+
+    # Log file with no error
+    with open(os.path.join(dummy_dir, "task_0.log"), "w") as f:
+        f.write("This is a log file without any errors.\n")
+        f.write("Task completed successfully.\n")
+        f.write("+ set +x\n")
+        f.write("EXIT_STATUS=0\n")
+        f.write("ELAPSED_TIME=69\n\n")
+        f.write("==== end of job  (0) at: Wed Dec 3 07:22:25 PM EST 2025 on host bc046\n")
+
+    # Log file with a ValueError
+    with open(os.path.join(dummy_dir, "task_1.log"), "w") as f:
+        f.write("Starting task...\n")
+        f.write("Traceback (most recent call last):\n")
+        f.write("  File \"<stdin>\", line 1, in <module>\n")
+        f.write("ValueError: Sample value error\n")
+        f.write("+ set +x\n")
+        f.write("EXIT_STATUS=0\n")
+        f.write("ELAPSED_TIME=69\n\n")
+        f.write("==== end of job  (0) at: Wed Dec 3 07:22:25 PM EST 2025 on host bc046\n")
+
+    # Another log file with no error
+    with open(os.path.join(dummy_dir, "task_2.log"), "w") as f:
+        f.write("Another successful task.\n")
+
+    # Log file with a ZeroDivisionError
+    with open(os.path.join(dummy_dir, "task_3.log"), "w") as f:
+        f.write("Processing data...\n")
+        f.write("Traceback (most recent call last):\n")
+        f.write("  File \"<stdin>\", line 4, in <module>\n")
+        f.write("ZeroDivisionError: division by zero\n")
+        f.write("+ set +x\n")
+        f.write("EXIT_STATUS=0\n")
+        f.write("ELAPSED_TIME=69\n\n")
+        f.write("==== end of job  (0) at: Wed Dec 3 07:22:25 PM EST 2025 on host bc046\n")
+
+    # Scan the created directory
+    errors = scan_logs_for_errors(dummy_dir)
+    assert len(errors) == 2
+    # Clean up the dummy directory and files
+    rmtree(dummy_dir)

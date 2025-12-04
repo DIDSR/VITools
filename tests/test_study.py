@@ -87,7 +87,7 @@ def test_clear_previous_results(output_dir):
     assert dummy_dir.exists()
 
     # Create a study with metadata pointing to the dummy directory
-    metadata = pd.DataFrame({"output_directory": [str(dummy_dir)]})
+    metadata = pd.DataFrame({"case_id": "case_0000", "output_directory": [str(dummy_dir)]})
     study = Study(metadata)
 
     # Clear the results and assert the directory is deleted

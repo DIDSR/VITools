@@ -10,6 +10,7 @@ The module also includes a plugin system for discovering available phantom
 types and a command-line interface for running studies.
 """
 import os
+import re
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -53,6 +54,57 @@ def get_available_phantoms() -> dict[str, type[Phantom]]:
         if result_dict:  # Check if the plugin returned a non-empty dict
             discovered_phantom_classes.update(result_dict)
     return discovered_phantom_classes
+
+
+def scan_logs_for_errors(directory_path, verbose=True):
+    """
+    Scans a directory for log files (e.g., task_0.log to task_4999.log),
+    prints which log files have a raised error, and copies the error
+    message raised in that log file.
+
+    Args:
+        directory_path (str): The path to the directory containing the log files.
+    """    
+    # Regex to match the log file pattern
+    log_file_pattern = re.compile(r"task_\d+\.log")
+    errors = dict()
+    try:
+        # Get a list of all files and directories in the specified directory
+        with os.scandir(directory_path) as entries:
+            for entry in entries:
+                # Check if it's a file and if it matches the log file pattern
+                if entry.is_file() and log_file_pattern.match(entry.name):
+                    log_file_path = entry.path
+                    try:
+                        with open(log_file_path, 'r') as f:
+                            lines = f.readlines()
+                        
+                        error_lines = []
+                        in_traceback = False
+                        # Check each line for the start of a traceback
+                        for i, line in enumerate(lines):
+                            if ("Traceback (most recent call last):") in line or ("Killed" in line):
+                                in_traceback = True
+                                # Once traceback is found, the rest of the file is the error
+                                error_lines = [l.strip() for l in lines[i:] if l.strip()]
+                                break
+
+                        if in_traceback and error_lines:
+                            # The last line of the traceback is typically the error message
+                            error_message = error_lines[-5]
+                            errors[entry.name] = error_message
+                            if verbose:
+                                print(f"--- ERROR FOUND IN: {entry.name} ---")
+                                print(f"Error Message: {error_message}\n")
+
+                    except Exception as e:
+                        print(f"Could not read file {entry.name}. Reason: {e}")
+
+    except FileNotFoundError:
+        print(f"Error: Directory not found at '{directory_path}'")
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+    return errors
 
 
 class Study:
@@ -105,7 +157,9 @@ Results:\n
         """
         if isinstance(input_csv, pd.DataFrame):
             self.metadata = input_csv
-            input_csv = Path('study_plan.csv').absolute()
+            parent_path = Path(input_csv.output_directory.iloc[0]).parent.absolute()
+            study_ids = '-'.join(list(map(lambda o: o.split('case_')[-1], [input_csv.case_id.iloc[0], input_csv.case_id.iloc[-1]])))
+            input_csv = parent_path / f'study_plan_{study_ids}.csv'
             print(f'study plan saved to: {input_csv}')
             self.metadata.to_csv(input_csv, index=False)
         elif isinstance(input_csv, str | Path):
@@ -347,8 +401,8 @@ Results:\n
             parallel = False
 
         try:
-            patientids = [int(os.environ['SLURM_ARRAY_TASK_ID']) - 1]
-            print(f'Now running from job {patientids[0] + 1}')
+            patientids = [int(os.environ['SLURM_ARRAY_TASK_ID'])]
+            print(f'Now running from job {patientids[0]}')
         except KeyError:
             pass
 
@@ -366,8 +420,9 @@ Results:\n
                  log_dir])
         else:
             for patientid in tqdm(patientids):
+                print(f'Now running: case {patientid}')
                 results = self.run_study(patientid)
-                series = self.metadata.iloc[patientid]
+                series = self.metadata[self.metadata.case_id  == f'case_{patientid:04d}'].iloc[0]
                 output_directory = Path(series.output_directory)
                 print(f"saving intermediate results to {output_directory / f'metadata_{patientid}.csv'}")
                 results.to_csv(output_directory / f'metadata_{patientid}.csv',
@@ -381,15 +436,22 @@ Results:\n
         scans_queued = len(patientids)
         output_df = self.get_scans_completed()
         scans_completed = len(np.unique(output_df.get('case_id', [])))
+        errors = {}
         with tqdm(total=scans_queued, desc='Scans completed in parallel') as pbar:
             while scans_completed < scans_queued:
                 sleep(1)
+                temp_errors = scan_logs_for_errors(log_dir, verbose=False)
                 output_df = self.get_scans_completed()
                 if len(np.unique(output_df.get('case_id', []))) > scans_completed:
                     pbar.update(
                         len(np.unique(output_df.get('case_id', []))) - scans_completed
                         )
                     scans_completed = len(np.unique(output_df.get('case_id', [])))
+                if len(temp_errors) > len(errors):
+                    errors = temp_errors
+                    for task_id in errors:
+                        print(f"--- ERROR FOUND IN: {task_id} ---")
+                        print(f"Error Message: {errors[task_id]}\n")
         return self
 
     @property
@@ -407,8 +469,10 @@ Results:\n
         Returns:
             Phantom: An initialized instance of the specified phantom class.
         """
-        series = self.metadata.iloc[patientid]
+        series = self.metadata[self.metadata.case_id  == f'case_{patientid:04d}'].iloc[0]
         available_phantoms = get_available_phantoms()
+        if series.phantom not in available_phantoms:
+            raise ValueError(f'phantom {series.phantom} not in `available_phantoms`, please see `get_available_phantoms()`')
         return available_phantoms[series.phantom]()
 
     def run_study(self, patientid: int = 0) -> pd.DataFrame:
@@ -430,19 +494,25 @@ Results:\n
             pd.DataFrame: A DataFrame containing metadata for the generated
                 DICOM files, including file paths.
         """
-        series = self.metadata.iloc[patientid]
+        series = self.metadata[self.metadata.case_id  == f'case_{patientid:04d}'].iloc[0]
+        print(f'loading phantom: {series.phantom}')
         phantom = self.load_phantom(patientid)
+        print('phantom loaded successfully!')
+        print(''.join(10*['-']))
         self.scanner = Scanner(phantom, series.scanner_model,
                                output_dir=series.output_directory)
 
         scan_coverage = series.scan_coverage
-        if pd.isna(scan_coverage) or scan_coverage == 'dynamic':
+        if isinstance(scan_coverage, tuple | list):
+            startZ, endZ = scan_coverage
+        elif pd.isna(scan_coverage) or scan_coverage == 'dynamic':
             startZ, endZ = self.scanner.recommend_scan_range()
         elif isinstance(scan_coverage, str):
             startZ, endZ = ast.literal_eval(scan_coverage)
-        else: # tuple or list
-            startZ, endZ = scan_coverage
-
+        else:
+            raise ValueError(f'scan_coverage datatype not recognized, not list, dataframe or str: {scan_coverage}')
+        print('scanner loaded successfully!')
+        print(''.join(10*['-']))
         self.scanner.run_scan(startZ=startZ, endZ=endZ,
                               views=int(series.views),
                               mA=series.mA, kVp=series.kVp, pitch=series.pitch)

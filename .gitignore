@@ -28,3 +28,4 @@ src/VITools.egg-info
 logs
 core*
 docs/_build
+tests/test_logs

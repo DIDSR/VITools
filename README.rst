@@ -127,8 +127,9 @@ Extensibility: Creating Custom Phantoms
 VITools uses a plugin architecture based on `pluggy` that allows you to create your own phantom generators and make them available to the `Study` class. To create a new phantom, you need to:
 
 1.  Create a new installable Python package.
-2.  In your package, create a class that inherits from `VITools.Phantom`.
-3.  Register your new phantom class using the `register_phantom_types` hook.
+2.  In your package, create a class that inherits from `VITools.Phantom` (See L6-20 of `examples.py <src/VITools/examples.py>`_).
+3.  Register your new phantom class using the `register_phantom_types` hook (See L22-244 of `examples.py <src/VITools/examples.py>`_).
+4.  Add plugin entry point to your `pyproject.toml <pyproject.toml>`_ file.
 
 For a detailed example, please refer to one of the repositories using `VITools`.
 

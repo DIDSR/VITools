@@ -471,9 +471,7 @@ Results:\n
         """
         series = self.metadata[self.metadata.case_id  == f'case_{patientid:04d}'].iloc[0]
         available_phantoms = get_available_phantoms()
-        if series.phantom in available_phantoms:
-            print(f'loading phantom: {series.phantom}')
-        else:
+        if series.phantom not in available_phantoms:
             raise ValueError(f'phantom {series.phantom} not in `available_phantoms`, please see `get_available_phantoms()`')
         return available_phantoms[series.phantom]()
 
@@ -497,7 +495,10 @@ Results:\n
                 DICOM files, including file paths.
         """
         series = self.metadata[self.metadata.case_id  == f'case_{patientid:04d}'].iloc[0]
+        print(f'loading phantom: {series.phantom}')
         phantom = self.load_phantom(patientid)
+        print('phantom loaded successfully!')
+        print(''.join(10*['-']))
         self.scanner = Scanner(phantom, series.scanner_model,
                                output_dir=series.output_directory)
 
@@ -510,6 +511,8 @@ Results:\n
             startZ, endZ = ast.literal_eval(scan_coverage)
         else:
             raise ValueError(f'scan_coverage datatype not recognized, not list, dataframe or str: {scan_coverage}')
+        print('scanner loaded successfully!')
+        print(''.join(10*['-']))
         self.scanner.run_scan(startZ=startZ, endZ=endZ,
                               views=int(series.views),
                               mA=series.mA, kVp=series.kVp, pitch=series.pitch)

@@ -1,5 +1,6 @@
 #!/bin/bash
-#SBATCH --mem=16G             # memory limit
+#SBATCH --mem=20G             # memory limit
+#SBATCH --time=48:00:00        # time limit
 PY_ENV=$1
 export LOG_DIR=$2
 INPUT=$3

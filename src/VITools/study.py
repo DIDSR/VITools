@@ -603,6 +603,7 @@ def vit_cli(arg_list: list[str] | None = None):
                         help='Input CSV to define a study. See `recruit --help`.')
     parser.add_argument('--parallel', '-p', action='store_true',
                         help='Run simulations in parallel using a batch system.')
+    parser.add_argument('--overwrite', '-o', action='store_true', help="Overwrites previous results")
     parser.add_argument('--chunk_size', '-c', type=int, default=None,
                         help='Number of simulations to run per chunk in parallel mode.')
     args = parser.parse_args(arg_list)
@@ -615,7 +616,7 @@ def vit_cli(arg_list: list[str] | None = None):
         parser.print_help()
         sys.exit(1)
 
-    Study(input_csv).run_all(args.parallel, chunk_size=args.chunk_size)
+    Study(input_csv).run_all(args.parallel, overwrite=args.overwrite, chunk_size=args.chunk_size)
 
 
 if __name__ == '__main__':

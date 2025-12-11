@@ -374,7 +374,46 @@ Results:\n
                 continue
         return pd.concat(results_dfs, ignore_index=True)
 
-    def run_all(self, parallel: bool = True, overwrite: bool = False, detached=False) -> "Study":
+    def _monitor_progress(self, log_dir, scans_queued=None):
+        """Monitors the progress of parallel scans.
+
+        Args:
+            log_dir (Path): Directory where logs are stored.
+            scans_queued (int, optional): Total number of scans expected to complete.
+                If None, defaults to the length of metadata.
+        """
+        if scans_queued is None:
+            scans_queued = len(self.metadata)
+
+        output_df = self.get_scans_completed()
+        scans_completed = len(np.unique(output_df.get('case_id', [])))
+        errors = {}
+        with tqdm(total=scans_queued, initial=scans_completed, desc='Scans completed in parallel') as pbar:
+            while scans_completed < scans_queued:
+                sleep(1)
+                temp_errors = scan_logs_for_errors(log_dir, verbose=False)
+                output_df = self.get_scans_completed()
+
+                # Count successful scans
+                successful_scans = len(np.unique(output_df.get('case_id', [])))
+
+                # Check for errors
+                new_errors_found = False
+                if len(temp_errors) > len(errors):
+                    errors = temp_errors
+                    new_errors_found = True
+                    for task_id in errors:
+                        print(f"--- ERROR FOUND IN: {task_id} ---")
+                        print(f"Error Message: {errors[task_id]}\n")
+
+                # Total completed = successes + failures
+                current_total_completed = successful_scans + len(errors)
+
+                if current_total_completed > scans_completed:
+                    pbar.update(current_total_completed - scans_completed)
+                    scans_completed = current_total_completed
+
+    def run_all(self, parallel: bool = True, overwrite: bool = False, chunk_size: int | None = None) -> "Study":
         """Runs all scans defined in the study.
 
         Clears previous results if `overwrite` is True. It attempts to run scans
@@ -387,12 +426,27 @@ Results:\n
             overwrite (bool, optional): If True, deletes previous results before
                 running. If False, resumes from unfinished scans.
                 Defaults to False.
+            chunk_size (int | None, optional): If set and running in parallel,
+                splits the study into chunks of this size and runs them
+                sequentially. Defaults to None.
 
         Returns:
             Study: The Study instance, after all scans have been processed.
         """
         if overwrite:
             self.clear_previous_results()
+
+        # Check for chunked execution
+        if parallel and chunk_size is not None and shutil.which("qsub"):
+             study_plan = self.metadata
+             chunked_study_plans = [study_plan[i:i + chunk_size] for i in range(0, len(study_plan), chunk_size)]
+
+             for chunk_id, study_plan_chunk in enumerate(chunked_study_plans):
+                 study_chunk = self.__class__(study_plan_chunk)
+                 print(f'now running chunk: {chunk_id + 1}/{len(chunked_study_plans)}')
+                 study_chunk.run_all(parallel=True, chunk_size=None, overwrite=False)
+             return self
+
         results = self.results
         patientids = [int(o.split('case_')[1]) for o in self.metadata.case_id if o not in list(results.get('case_id', []))]
         output = Path(self.metadata.iloc[0]['output_directory']).parent
@@ -418,6 +472,8 @@ Results:\n
                  str(src_dir / 'batchmode_CT_dataset_pipeline.sge'),
                  f'{self.csv_fname}',
                  log_dir])
+
+            self._monitor_progress(log_dir)
         else:
             for patientid in tqdm(patientids):
                 print(f'Now running: case {patientid}')
@@ -431,29 +487,7 @@ Results:\n
                     shutil.rmtree(output_directory / series.phantom)
                     [os.remove(o) for o in Path('.').rglob('VIT-BATCH*') if
                      o.is_file()]
-        if detached:
-            self.log_dir = log_dir
-            return self
-        output_df = self.get_scans_completed()
-        scans_queued = len(patientids)
-        output_df = self.get_scans_completed()
-        scans_completed = len(np.unique(output_df.get('case_id', [])))
-        errors = {}
-        with tqdm(total=scans_queued, desc='Scans completed in parallel') as pbar:
-            while scans_completed < scans_queued:
-                sleep(1)
-                temp_errors = scan_logs_for_errors(log_dir, verbose=False)
-                output_df = self.get_scans_completed()
-                if len(np.unique(output_df.get('case_id', []))) > scans_completed:
-                    pbar.update(
-                        len(np.unique(output_df.get('case_id', []))) - scans_completed
-                        )
-                    scans_completed = len(np.unique(output_df.get('case_id', []))) + len(errors)
-                if len(temp_errors) > len(errors):
-                    errors = temp_errors
-                    for task_id in errors:
-                        print(f"--- ERROR FOUND IN: {task_id} ---")
-                        print(f"Error Message: {errors[task_id]}\n")
+
         return self
 
     @property

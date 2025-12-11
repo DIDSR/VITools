@@ -131,12 +131,12 @@ VITools uses a plugin architecture based on `pluggy` that allows you to create y
 3.  Register your new phantom class using the `register_phantom_types` hook (See L22-244 of `examples.py <src/VITools/examples.py>`_).
 4.  Add plugin entry point to your `pyproject.toml <pyproject.toml>`_ file.
 
-For a detailed example, please refer to one of the repositories using `VITools`.
+.. For a detailed example, please refer to one of the repositories using `VITools`.
 
-Repositories using `VITools`
-----------------------------
+.. Repositories using `VITools`
+.. ----------------------------
 
--   `InSilicoICH <https://github.com/DIDSR/InSilicoICH>`_: For generating synthetic non-contrast CT datasets of intracranial hemorrhage (ICH).
--   `PedSilicoLVO <https://github.com/brandonjnelsonFDA/PedSilicoLVO>`_: For generating synthetic large vessel occlusion (LVO) non-contrast CT datasets.
--   `PedSilicoAbdomen <https://github.com/DIDSR/PedSilicoAbdomen>`_: For generating synthetic abdominal non-contrast CT datasets of liver metastases.
--   `InSilicoGUI <https://github.com/DIDSR/InSilicoGUI>`_: Provides a graphical user interface to the phantoms and imaging simulations.
+.. -   `InSilicoICH <https://github.com/DIDSR/InSilicoICH>`_: For generating synthetic non-contrast CT datasets of intracranial hemorrhage (ICH).
+.. -   `PedSilicoLVO <https://github.com/brandonjnelsonFDA/PedSilicoLVO>`_: For generating synthetic large vessel occlusion (LVO) non-contrast CT datasets.
+.. -   `PedSilicoAbdomen <https://github.com/DIDSR/PedSilicoAbdomen>`_: For generating synthetic abdominal non-contrast CT datasets of liver metastases.
+.. -   `InSilicoGUI <https://github.com/DIDSR/InSilicoGUI>`_: Provides a graphical user interface to the phantoms and imaging simulations.

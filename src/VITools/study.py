@@ -437,7 +437,7 @@ Results:\n
             self.clear_previous_results()
 
         # Check for chunked execution
-        if parallel and chunk_size is not None and shutil.which("qsub"):
+        if parallel and (chunk_size is not None) and shutil.which("qsub"):
              study_plan = self.metadata
              chunked_study_plans = [study_plan[i:i + chunk_size] for i in range(0, len(study_plan), chunk_size)]
 

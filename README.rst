@@ -48,13 +48,13 @@ Core Concepts
 
 VITools is built around three core components that represent the key elements of a virtual imaging trial:
 
-1.  **`Phantom <https://github.com/DIDSR/VITools/blob/master/src/VITools/phantom.py>`_**:
+1.  `Phantom <https://github.com/DIDSR/VITools/blob/master/src/VITools/phantom.py>`_:
     Represents the subject or object to be imaged. A phantom is defined by a 3D NumPy array of CT numbers (in Hounsfield Units) and the corresponding voxel spacings.
 
-2.  **`Scanner <https://github.com/DIDSR/VITools/blob/master/src/VITools/scanner.py>`_**:
+2.  `Scanner <https://github.com/DIDSR/VITools/blob/master/src/VITools/scanner.py>`_:
     Represents the imaging device. It wraps the XCIST simulator and is configured with a specific `Phantom`. The scanner's behavior is defined by XCIST configuration files that specify its geometry, source, and detector characteristics.
 
-3.  **`Study <https://github.com/DIDSR/VITools/blob/master/src/VITools/study.py>`_**:
+3.  `Study <https://github.com/DIDSR/VITools/blob/master/src/VITools/study.py>`_:
     Manages a collection of scans. This class is used to design large-scale experiments, where you might want to vary parameters like phantom type, scanner model, mA, or kVp across many simulations. It can generate study plans and execute them in series or in parallel.
 
 Basic Usage

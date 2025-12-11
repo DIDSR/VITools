@@ -128,7 +128,7 @@ VITools uses a plugin architecture based on `pluggy` that allows you to create y
 
 1.  Create a new installable Python package.
 2.  In your package, create a class that inherits from `VITools.Phantom` (See L6-20 of `examples.py <src/VITools/examples.py>`_).
-3.  Register your new phantom class using the `register_phantom_types` hook (See L22-244 of `examples.py <src/VITools/examples.py>`_).
+3.  Register your new phantom class using the `register_phantom_types` hook (See L22-24 of `examples.py <src/VITools/examples.py>`_).
 4.  Add plugin entry point to your `pyproject.toml <pyproject.toml>`_ file.
 
 .. For a detailed example, please refer to one of the repositories using `VITools`.

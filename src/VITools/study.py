@@ -374,7 +374,7 @@ Results:\n
                 continue
         return pd.concat(results_dfs, ignore_index=True)
 
-    def run_all(self, parallel: bool = True, overwrite: bool = False) -> "Study":
+    def run_all(self, parallel: bool = True, overwrite: bool = False, detached=False) -> "Study":
         """Runs all scans defined in the study.
 
         Clears previous results if `overwrite` is True. It attempts to run scans
@@ -431,7 +431,9 @@ Results:\n
                     shutil.rmtree(output_directory / series.phantom)
                     [os.remove(o) for o in Path('.').rglob('VIT-BATCH*') if
                      o.is_file()]
-
+        if detached:
+            self.log_dir = log_dir
+            return self
         output_df = self.get_scans_completed()
         scans_queued = len(patientids)
         output_df = self.get_scans_completed()
@@ -446,7 +448,7 @@ Results:\n
                     pbar.update(
                         len(np.unique(output_df.get('case_id', []))) - scans_completed
                         )
-                    scans_completed = len(np.unique(output_df.get('case_id', [])))
+                    scans_completed = len(np.unique(output_df.get('case_id', []))) + len(errors)
                 if len(temp_errors) > len(errors):
                     errors = temp_errors
                     for task_id in errors:

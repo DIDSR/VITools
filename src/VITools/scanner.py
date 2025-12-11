@@ -368,6 +368,8 @@ class Scanner():
             endZ = self.total_scan_length / 2
         else:
             endZ = min(endZ, self.total_scan_length / 2)
+        if np.isclose(startZ, endZ, atol=0.1):
+            return [startZ]
         return np.arange(startZ, endZ, self.nominal_aperature)
 
     def recommend_scan_range(self, threshold: float = -950) -> tuple[int, int]:

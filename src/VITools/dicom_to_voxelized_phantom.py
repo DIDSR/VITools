@@ -116,7 +116,7 @@ def initialize(phantom) -> tuple:
         raise FileNotFoundError(f"No DICOM files found in {phantom.dicom_path}")
 
     # Sort DICOM files numerically instead of alphabetically
-    dcm_files.sort(key=lambda f: int(re.findall(r'\d+', f)[0]))
+    dcm_files = sorted(dcm_files)
 
     if hasattr(phantom, 'slice_range'):
         indices = list(range(phantom.slice_range[0], phantom.slice_range[1] + 1))

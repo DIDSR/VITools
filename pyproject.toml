@@ -1,6 +1,6 @@
 [project]
 name = "VITools"
-version = "0.1.8"
+version = "0.2.12"
 authors = [
   {name="Brandon Nelson", email="brandon.nelson@fda.hhs.gov"},
 ]
@@ -33,3 +33,6 @@ Issues = "https://github.com/brandonjnelsonFDA/VIT-Tools/issues"
 
 [project.scripts]
 generate = "VITools.study:vit_cli"
+
+[project.entry-points."VITools"] # Must match PROJECT_NAME
+examples = "VITools.examples"

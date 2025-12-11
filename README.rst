@@ -48,13 +48,13 @@ Core Concepts
 
 VITools is built around three core components that represent the key elements of a virtual imaging trial:
 
-1.  **`Phantom <https://github.com/DIDSR/VITools/blob/master/src/VITools/phantom.py>`_**:
+1.  `Phantom <https://github.com/DIDSR/VITools/blob/master/src/VITools/phantom.py>`_:
     Represents the subject or object to be imaged. A phantom is defined by a 3D NumPy array of CT numbers (in Hounsfield Units) and the corresponding voxel spacings.
 
-2.  **`Scanner <https://github.com/DIDSR/VITools/blob/master/src/VITools/scanner.py>`_**:
+2.  `Scanner <https://github.com/DIDSR/VITools/blob/master/src/VITools/scanner.py>`_:
     Represents the imaging device. It wraps the XCIST simulator and is configured with a specific `Phantom`. The scanner's behavior is defined by XCIST configuration files that specify its geometry, source, and detector characteristics.
 
-3.  **`Study <https://github.com/DIDSR/VITools/blob/master/src/VITools/study.py>`_**:
+3.  `Study <https://github.com/DIDSR/VITools/blob/master/src/VITools/study.py>`_:
     Manages a collection of scans. This class is used to design large-scale experiments, where you might want to vary parameters like phantom type, scanner model, mA, or kVp across many simulations. It can generate study plans and execute them in series or in parallel.
 
 Basic Usage
@@ -136,15 +136,25 @@ Extensibility: Creating Custom Phantoms
 VITools uses a plugin architecture based on `pluggy` that allows you to create your own phantom generators and make them available to the `Study` class. To create a new phantom, you need to:
 
 1.  Create a new installable Python package.
-2.  In your package, create a class that inherits from `VITools.Phantom`.
-3.  Register your new phantom class using the `register_phantom_types` hook.
+2.  In your package, create a class that inherits from `VITools.Phantom` (See L6-20 of `examples.py <src/VITools/examples.py>`_).
+3.  Register your new phantom class using the `register_phantom_types` hook (See L22-24 of `examples.py <src/VITools/examples.py>`_).
+4.  Add plugin entry point to your `pyproject.toml <pyproject.toml>`_ file.
 
-For a detailed example, please refer to one of the repositories using `VITools`.
+.. For a detailed example, please refer to one of the repositories using `VITools`.
 
-Repositories using `VITools`
-----------------------------
+.. Repositories using `VITools`
+.. ----------------------------
 
--   `InSilicoICH <https://github.com/DIDSR/InSilicoICH>`_: For generating synthetic non-contrast CT datasets of intracranial hemorrhage (ICH).
--   `PedSilicoLVO <https://github.com/brandonjnelsonFDA/PedSilicoLVO>`_: For generating synthetic large vessel occlusion (LVO) non-contrast CT datasets.
--   `PedSilicoAbdomen <https://github.com/DIDSR/PedSilicoAbdomen>`_: For generating synthetic abdominal non-contrast CT datasets of liver metastases.
--   `InSilicoGUI <https://github.com/DIDSR/InSilicoGUI>`_: Provides a graphical user interface to the phantoms and imaging simulations.
+.. -   `InSilicoICH <https://github.com/DIDSR/InSilicoICH>`_: For generating synthetic non-contrast CT datasets of intracranial hemorrhage (ICH).
+.. -   `PedSilicoLVO <https://github.com/brandonjnelsonFDA/PedSilicoLVO>`_: For generating synthetic large vessel occlusion (LVO) non-contrast CT datasets.
+.. -   `PedSilicoAbdomen <https://github.com/DIDSR/PedSilicoAbdomen>`_: For generating synthetic abdominal non-contrast CT datasets of liver metastases.
+.. -   `InSilicoGUI <https://github.com/DIDSR/InSilicoGUI>`_: Provides a graphical user interface to the phantoms and imaging simulations.
+
+Disclaimer
+---------------------
+
+**About the Catalog of Regulatory Science Tools**
+
+The enclosed tool is *in preparation* for the `Catalog of Regulatory Science Tools <https://cdrh-rst.fda.gov>`_, which provides a peer-reviewed resource for stakeholders to use where standards and qualified Medical Device Development Tools (MDDTs) do not yet exist. These tools do not replace FDA-recognized standards or MDDTs. This catalog collates a variety of regulatory science tools that the FDA's Center for Devices and Radiological Health's (CDRH) Office of Science and Engineering Labs (OSEL) developed. These tools use the most innovative science to support medical device development and patient access to safe and effective medical devices. If you are considering using a tool from this catalog in your marketing submissions, note that these tools have not been qualified as `Medical Device Development Tools <https://www.fda.gov/medical-devices/medical-device-development-tools-mddt>`_ and the FDA has not evaluated the suitability of these tools within any specific context of use. You may `request feedback or meetings for medical device submissions <https://www.fda.gov/regulatory-information/search-fda-guidance-documents/requests-feedback-and-meetings-medical-device-submissions-q-submission-program>`_ as part of the Q-Submission Program.
+
+For more information about the Catalog of Regulatory Science Tools, email RST_CDRH@fda.hhs.gov.

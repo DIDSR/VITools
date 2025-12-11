@@ -99,6 +99,15 @@ Here is a complete example of how to create a simple phantom, simulate a scan, a
 
     print(f"Successfully created {len(dcm_files)} DICOM files in ./output/dicom/")
 
+Interactive Examples
+--------------------
+
+For more in-depth, runnable examples of each component, please refer to the following Jupyter notebooks:
+
+*   `01_phantoms.ipynb <https://github.com/DIDSR/VITools/blob/master/notebooks/01_phantoms.ipynb>`_
+*   `02_scanners.ipynb <https://github.com/DIDSR/VITools/blob/master/notebooks/02_scanners.ipynb>`_
+*   `03_studies.ipynb <https://github.com/DIDSR/VITools/blob/master/notebooks/03_studies.ipynb>`_
+
 Advanced Usage: The `Study` Class
 ----------------------------------
 

@@ -130,7 +130,7 @@ The `generate` command takes a CSV file path as an argument and executes the stu
 
 .. code-block:: bash
 
-   generate study_plan.csv
+   generate example_study_plan.csv
 
 The input CSV file must contain specific columns that define the parameters for each scan. The required columns are:
 

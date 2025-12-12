@@ -437,7 +437,7 @@ Results:\n
             self.clear_previous_results()
 
         # Check for chunked execution
-        if parallel and chunk_size is not None and shutil.which("qsub"):
+        if parallel and (chunk_size is not None) and shutil.which("qsub"):
              study_plan = self.metadata
              chunked_study_plans = [study_plan[i:i + chunk_size] for i in range(0, len(study_plan), chunk_size)]
 
@@ -603,6 +603,9 @@ def vit_cli(arg_list: list[str] | None = None):
                         help='Input CSV to define a study.')
     parser.add_argument('--parallel', '-p', action='store_true',
                         help='Run simulations in parallel using a batch system.')
+    parser.add_argument('--overwrite', '-o', action='store_true', help="Overwrites previous results")
+    parser.add_argument('--chunk_size', '-c', type=int, default=None,
+                        help='Number of simulations to run per chunk in parallel mode.')
     args = parser.parse_args(arg_list)
 
     input_csv = args.input_csv
@@ -613,7 +616,7 @@ def vit_cli(arg_list: list[str] | None = None):
         parser.print_help()
         sys.exit(1)
 
-    Study(input_csv).run_all(args.parallel)
+    Study(input_csv).run_all(args.parallel, overwrite=args.overwrite, chunk_size=args.chunk_size)
 
 
 if __name__ == '__main__':

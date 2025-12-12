@@ -600,7 +600,7 @@ def vit_cli(arg_list: list[str] | None = None):
         epilog='Arguments can be given as TOML config files or command line flags.',
         fromfile_prefix_chars='@')
     parser.add_argument('input_csv', nargs='?', type=str,
-                        help='Input CSV to define a study. See `recruit --help`.')
+                        help='Input CSV to define a study.')
     parser.add_argument('--parallel', '-p', action='store_true',
                         help='Run simulations in parallel using a batch system.')
     args = parser.parse_args(arg_list)

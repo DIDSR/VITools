@@ -9,7 +9,7 @@
 project = 'VITools'
 copyright = '2025, Brandon J. Nelson'
 author = 'Brandon J. Nelson'
-release = '0.0.2'
+release = '0.0.3'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration

@@ -121,4 +121,43 @@ You can create a study and add a scan like this:
    # You can now run all the scans defined in the study
    study.run_all(parallel=False)
 
+Command Line Interface
+----------------------
+
+VITools provides a command-line interface (CLI) to easily run simulations defined in a CSV file. This is particularly useful for batch processing or running studies on remote servers.
+
+The `generate` command takes a CSV file path as an argument and executes the study plan defined within it.
+
+.. code-block:: bash
+
+   generate study_plan.csv
+
+The input CSV file must contain specific columns that define the parameters for each scan. The required columns are:
+
+- **case_id**: A unique identifier for the case (e.g., 'case_0001').
+- **phantom**: The name of the phantom to use (must be a registered phantom).
+- **scanner_model**: The name of the scanner model (e.g., 'Scanner_Default').
+- **kVp**: The tube voltage in kV.
+- **mA**: The tube current in mA.
+- **views**: The number of views per rotation.
+- **pitch**: The helical pitch.
+- **scan_coverage**: The start and end Z positions of the scan (e.g., '[-50, 50]' or 'dynamic').
+- **recon_kernel**: The reconstruction kernel (e.g., 'standard', 'soft').
+- **slice_thickness**: The slice thickness in mm.
+- **slice_increment**: The slice increment in mm.
+- **fov**: The Field of View in mm.
+- **output_directory**: The directory where the results will be saved.
+- **remove_raw**: (Optional) Boolean indicating whether to remove raw data after reconstruction.
+
+**Sample CSV Content**
+
+Below is an example of a valid CSV file content using the built-in 'Water Phantom':
+
+.. code-block:: csv
+
+   case_id,phantom,scanner_model,kVp,mA,views,pitch,scan_coverage,recon_kernel,slice_thickness,slice_increment,fov,output_directory,remove_raw,seed
+   case_0000,Water Phantom,Scanner_Default,120.0,200.0,1000.0,0.0,"[-50, 50]",standard,1,1,250.0,/tmp/results/case_0000,True,42
+   case_0001,Water Phantom,Scanner_Default,120.0,200.0,1000.0,0.0,"[-50, 50]",soft,1,1,250.0,/tmp/results/case_0001,True,43
+
+
 This provides a basic overview of how to use the `VITools` library. For more advanced usage and details on the available classes and functions, please refer to the API documentation.

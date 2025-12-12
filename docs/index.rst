@@ -150,6 +150,12 @@ For more complex experiments, the `Study` class can automate running hundreds or
     study = Study(study_plan)
     study.run_all(parallel=True)
 
+Command Line Interface
+----------------------
+VITools includes a command-line utility for running simulations. The `generate` command runs simulations defined in a CSV file.
+
+For detailed usage, please refer to the `documentation <usage.html>`_.
+
 Extensibility: Creating Custom Phantoms
 ---------------------------------------
 VITools uses a plugin architecture based on `pluggy` that allows you to create your own phantom generators and make them available to the `Study` class. To create a new phantom, you need to:

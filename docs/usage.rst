@@ -130,7 +130,7 @@ The `generate` command takes a CSV file path as an argument and executes the stu
 
 .. code-block:: bash
 
-   generate study_plan.csv
+   generate example_study_plan.csv
 
 The input CSV file must contain specific columns that define the parameters for each scan. The required columns are:
 
@@ -153,11 +153,9 @@ The input CSV file must contain specific columns that define the parameters for 
 
 Below is an example of a valid CSV file content using the built-in 'Water Phantom':
 
-.. code-block:: csv
-
-   case_id,phantom,scanner_model,kVp,mA,views,pitch,scan_coverage,recon_kernel,slice_thickness,slice_increment,fov,output_directory,remove_raw,seed
-   case_0000,Water Phantom,Scanner_Default,120.0,200.0,1000.0,0.0,"[-50, 50]",standard,1,1,250.0,/tmp/results/case_0000,True,42
-   case_0001,Water Phantom,Scanner_Default,120.0,200.0,1000.0,0.0,"[-50, 50]",soft,1,1,250.0,/tmp/results/case_0001,True,43
-
+.. csv-table:: Sample Study Plan CSV
+   :file: example_study_plan.csv
+   :header-rows: 1
+   :widths: auto
 
 This provides a basic overview of how to use the `VITools` library. For more advanced usage and details on the available classes and functions, please refer to the API documentation.

@@ -438,14 +438,14 @@ Results:\n
 
         # Check for chunked execution
         if parallel and (chunk_size is not None) and shutil.which("qsub"):
-             study_plan = self.metadata
-             chunked_study_plans = [study_plan[i:i + chunk_size] for i in range(0, len(study_plan), chunk_size)]
+            study_plan = self.metadata
+            chunked_study_plans = [study_plan[i:i + chunk_size] for i in range(0, len(study_plan), chunk_size)]
 
-             for chunk_id, study_plan_chunk in enumerate(chunked_study_plans):
-                 study_chunk = self.__class__(study_plan_chunk)
-                 print(f'now running chunk: {chunk_id + 1}/{len(chunked_study_plans)}')
-                 study_chunk.run_all(parallel=True, chunk_size=None, overwrite=False)
-             return self
+            for chunk_id, study_plan_chunk in enumerate(chunked_study_plans):
+                study_chunk = self.__class__(study_plan_chunk)
+                print(f'now running chunk: {chunk_id + 1}/{len(chunked_study_plans)}')
+                study_chunk.run_all(parallel=True, chunk_size=None, overwrite=False)
+            return self
 
         results = self.results
         patientids = [int(o.split('case_')[1]) for o in self.metadata.case_id if o not in list(results.get('case_id', []))]
@@ -478,7 +478,7 @@ Results:\n
             for patientid in tqdm(patientids):
                 print(f'Now running: case {patientid}')
                 results = self.run_study(patientid)
-                series = self.metadata[self.metadata.case_id  == f'case_{patientid:04d}'].iloc[0]
+                series = self.metadata[self.metadata.case_id == f'case_{patientid:04d}'].iloc[0]
                 output_directory = Path(series.output_directory)
                 print(f"saving intermediate results to {output_directory / f'metadata_{patientid}.csv'}")
                 results.to_csv(output_directory / f'metadata_{patientid}.csv',

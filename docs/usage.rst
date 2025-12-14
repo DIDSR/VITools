@@ -159,5 +159,26 @@ Below is an example of a valid CSV file content using the built-in 'Water Phanto
    case_0000,Water Phantom,Scanner_Default,120.0,200.0,1000.0,0.0,"[-50, 50]",standard,1,1,250.0,/tmp/results/case_0000,True,42
    case_0001,Water Phantom,Scanner_Default,120.0,200.0,1000.0,0.0,"[-50, 50]",soft,1,1,250.0,/tmp/results/case_0001,True,43
 
+Cleaning Incomplete Simulations
+-------------------------------
+
+If a batch simulation process is interrupted or fails, you can use the `vit_clean` command to remove the output directories of incomplete simulations while preserving the results of completed ones. This helps in freeing up space and preparing for a clean restart or analysis.
+
+The `vit_clean` command takes the root folder of the study (which must contain the `*_study_plan.csv` file) as an argument.
+
+.. code-block:: bash
+
+   vit_clean /path/to/study_root
+
+Or you can point directly to the study plan CSV:
+
+.. code-block:: bash
+
+   vit_clean /path/to/study_root/my_study_plan.csv
+
+This will:
+1. Load the study plan.
+2. Identify completed scans by checking for `metadata_*.csv` files.
+3. Remove the output directories of any scans that are not marked as complete.
 
 This provides a basic overview of how to use the `VITools` library. For more advanced usage and details on the available classes and functions, please refer to the API documentation.

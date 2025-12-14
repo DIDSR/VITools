@@ -619,5 +619,68 @@ def vit_cli(arg_list: list[str] | None = None):
     Study(input_csv).run_all(args.parallel, overwrite=args.overwrite, chunk_size=args.chunk_size)
 
 
+def clean_study(study_root: str):
+    '''removes intermediate files from incomplete scans
+
+    Args:
+        study_root (str): root folder containing study, must contain *_study_plan.csv file
+    '''
+    study_root = Path(study_root)
+    if str(study_root).endswith('.csv'):
+        study_root = study_root.parent
+
+    try:
+        study_plan = next(study_root.glob('*_study_plan.csv'))
+    except StopIteration:
+        print(f"Error: No study plan matching '*_study_plan.csv' found in {study_root}")
+        return
+
+    study = Study(study_plan)
+    results = study.results
+
+    if 'case_id' in results.columns:
+        complete_studies = set(sorted(np.unique(results.case_id)))
+        print(f"scans completed: {len(complete_studies)}")
+    else:
+        complete_studies = set()
+        print("scans completed: 0")
+
+    incomplete_studies = [
+        cid for cid in study.metadata.case_id if cid not in complete_studies
+    ]
+
+    print(f"Removing intermediate files from {len(incomplete_studies)} incomplete studies")
+
+    # Assuming output_directory is populated in metadata
+    if len(study.metadata) > 0:
+        base_dir = Path(study.metadata.output_directory.iloc[0]).parent
+
+        for case_id in tqdm(incomplete_studies):
+             # We use case_id as the folder name
+             target_dir = base_dir / case_id
+             shutil.rmtree(target_dir, ignore_errors=True)
+    else:
+        print("Study metadata is empty.")
+
+
+def vit_clean_cli(arg_list: list[str] | None = None):
+    """Command-line interface for cleaning VITools simulations.
+
+    Args:
+        arg_list (list[str] | None, optional): A list of command-line
+            arguments. If None, `sys.argv[1:]` is used. Defaults to None.
+    """
+    parser = ArgumentParser(
+        "Study Cleaning Tool",
+        description="removes bulky intermediate files from incomplete sims"
+        )
+    parser.add_argument(
+        'study_root',
+        help='root folder containing the study and *_study_plan.csv file'
+        )
+    args = parser.parse_args(arg_list)
+    clean_study(args.study_root)
+
+
 if __name__ == '__main__':
     vit_cli()

@@ -447,8 +447,11 @@ Results:\n
                 study_chunk.run_all(parallel=True, chunk_size=None, overwrite=False)
             return self
 
-        results = self.results
-        patientids = [int(o.split('case_')[1]) for o in self.metadata.case_id if o not in list(results.get('case_id', []))]
+        patientids = []
+        for i, row in self.metadata.iterrows():
+            patientid = int(row.case_id.split('case_')[1])
+            if not (Path(row.output_directory) / f'metadata_{patientid}.csv').exists():
+                patientids.append(patientid)
         output = Path(self.metadata.iloc[0]['output_directory']).parent
         if parallel and not shutil.which("qsub"):
             print("qsub not found, running in serial mode.")

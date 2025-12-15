@@ -458,7 +458,11 @@ Results:\n
             parallel = False
 
         try:
-            patientids = [int(os.environ['SLURM_ARRAY_TASK_ID'])]
+            task_id = int(os.environ['SLURM_ARRAY_TASK_ID'])
+            if task_id not in patientids:
+                print(f'Task {task_id} already completed, skipping.')
+                return self
+            patientids = [task_id]
             print(f'Now running from job {patientids[0]}')
         except KeyError:
             pass

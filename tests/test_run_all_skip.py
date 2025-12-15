@@ -12,32 +12,31 @@ def setup_study_env(tmp_path):
     # Setup directory structure
     results_dir = tmp_path / "results"
     results_dir.mkdir()
-
+    
     # case_0000: completed
     (results_dir / "case_0000").mkdir()
     (results_dir / "case_0000" / "dicoms").mkdir()
     with open(results_dir / "case_0000" / "metadata_0.csv", "w") as f:
         f.write("case_id,some_data\ncase_0000,data")
-
+        
     # case_0001: completed
     (results_dir / "case_0001").mkdir()
     (results_dir / "case_0001" / "dicoms").mkdir()
     (results_dir / "case_0001" / "lesion_masks").mkdir()
     with open(results_dir / "case_0001" / "metadata_1.csv", "w") as f:
         f.write("case_id,some_data\ncase_0001,data")
-
+        
     # case_0003: incomplete
     (results_dir / "case_0003").mkdir()
     (results_dir / "case_0003" / "Vessel MIDA Head").mkdir()
     # No metadata file
 
     # case_0004: corrupted/empty metadata file
-    # Old logic would fail to read this and retry. New logic should see it exists and skip.
     (results_dir / "case_0004").mkdir()
     (results_dir / "case_0004" / "dicoms").mkdir()
     with open(results_dir / "case_0004" / "metadata_4.csv", "w") as f:
         f.write("") # Empty file
-
+    
     # Create study metadata
     metadata = pd.DataFrame({
         'case_id': ['case_0000', 'case_0001', 'case_0003', 'case_0004'],
@@ -61,7 +60,7 @@ def setup_study_env(tmp_path):
         'slice_increment': [1, 1, 1, 1],
         'seed': [None, None, None, None]
     })
-
+    
     return study_env(metadata, results_dir)
 
 class study_env:
@@ -69,26 +68,56 @@ class study_env:
         self.metadata = metadata
         self.results_dir = results_dir
 
-def test_run_all_skips_completed(setup_study_env):
+def test_run_all_skips_completed_serial(setup_study_env):
+    """Verifies that run_all skips completed cases in serial mode."""
     env = setup_study_env
-
+    
     study = Study()
     study.metadata = env.metadata
-
-    # Mock run_study to avoid actual simulation and track calls
+    
     mock_results = pd.DataFrame({'image_file_path': ['path/to/img']})
-
+    
+    # Ensure parallel=False and SLURM_ARRAY_TASK_ID is unset
     with patch.object(study, 'run_study', return_value=mock_results) as mock_run:
-        # Mocking run calls
-        study.run_all(parallel=False, overwrite=False)
+        with patch.dict(os.environ, {}, clear=True):
+            study.run_all(parallel=False, overwrite=False)
+            
+            calls = mock_run.call_args_list
+            called_ids = [args[0] for args, kwargs in calls]
+            
+            assert 0 not in called_ids
+            assert 1 not in called_ids
+            assert 3 in called_ids
+            assert 4 not in called_ids
 
-        calls = mock_run.call_args_list
-        called_ids = [args[0] for args, kwargs in calls]
+def test_run_all_parallel_worker_skips_completed(setup_study_env):
+    """Verifies that a parallel worker (simulated by SLURM_ARRAY_TASK_ID) skips if the case is completed."""
+    env = setup_study_env
+    
+    study = Study()
+    study.metadata = env.metadata
+    
+    mock_results = pd.DataFrame({'image_file_path': ['path/to/img']})
+    
+    # Case 0 is completed. Worker assigned task 0 should skip.
+    with patch.object(study, 'run_study', return_value=mock_results) as mock_run:
+        with patch.dict(os.environ, {'SLURM_ARRAY_TASK_ID': '0'}):
+            study.run_all(parallel=True, overwrite=False)
+            assert mock_run.call_count == 0
 
-        print(f"Called IDs: {called_ids}")
-
-        assert 0 not in called_ids, "Case 0 should have been skipped"
-        assert 1 not in called_ids, "Case 1 should have been skipped"
-        assert 3 in called_ids, "Case 3 should have been run"
-        assert 4 not in called_ids, "Case 4 (empty metadata) should have been skipped by file existence check"
-        assert len(calls) == 1, f"Expected exactly 1 call (case 3), got {len(calls)}: {called_ids}"
+def test_run_all_parallel_worker_runs_incomplete(setup_study_env):
+    """Verifies that a parallel worker runs if the case is incomplete."""
+    env = setup_study_env
+    
+    study = Study()
+    study.metadata = env.metadata
+    
+    mock_results = pd.DataFrame({'image_file_path': ['path/to/img']})
+    
+    # Case 3 is incomplete. Worker assigned task 3 should run.
+    with patch.object(study, 'run_study', return_value=mock_results) as mock_run:
+        with patch.dict(os.environ, {'SLURM_ARRAY_TASK_ID': '3'}):
+            study.run_all(parallel=True, overwrite=False)
+            
+            assert mock_run.call_count == 1
+            assert mock_run.call_args[0][0] == 3

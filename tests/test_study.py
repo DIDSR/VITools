@@ -44,7 +44,8 @@ def test_study():
     input_df = Study.generate_from_distributions(phantoms=['Water Phantom'],
                                                  study_count=2,
                                                  views=[20],
-                                                 scan_coverage=(0, 7))
+                                                 scan_coverage=(0, 7),
+                                                 output_dir=test_dir)
     study1 = Study(input_df)
     study1.run_all(parallel=False, overwrite=True)
     results1 = study1.results

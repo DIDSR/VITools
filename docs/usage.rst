@@ -153,11 +153,8 @@ The input CSV file must contain specific columns that define the parameters for 
 
 Below is an example of a valid CSV file content using the built-in 'Water Phantom':
 
-.. code-block:: csv
-
-   case_id,phantom,scanner_model,kVp,mA,views,pitch,scan_coverage,recon_kernel,slice_thickness,slice_increment,fov,output_directory,remove_raw,seed
-   case_0000,Water Phantom,Scanner_Default,120.0,200.0,1000.0,0.0,"[-50, 50]",standard,1,1,250.0,/tmp/results/case_0000,True,42
-   case_0001,Water Phantom,Scanner_Default,120.0,200.0,1000.0,0.0,"[-50, 50]",soft,1,1,250.0,/tmp/results/case_0001,True,43
+.. literalinclude:: example_study_plan.csv
+   :language: csv
 
 Cleaning Incomplete Simulations
 -------------------------------

@@ -130,7 +130,7 @@ The `generate` command takes a CSV file path as an argument and executes the stu
 
 .. code-block:: bash
 
-   generate study_plan.csv
+   generate example_study_plan.csv
 
 The input CSV file must contain specific columns that define the parameters for each scan. The required columns are:
 
@@ -180,5 +180,6 @@ This will:
 1. Load the study plan.
 2. Identify completed scans by checking for `metadata_*.csv` files.
 3. Remove the output directories of any scans that are not marked as complete.
+
 
 This provides a basic overview of how to use the `VITools` library. For more advanced usage and details on the available classes and functions, please refer to the API documentation.

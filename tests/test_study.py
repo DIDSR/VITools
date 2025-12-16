@@ -21,9 +21,6 @@ from VITools.study import Study, scan_logs_for_errors
 from VITools.phantom import Phantom
 
 test_dir = Path('tests/results').absolute()
-if test_dir.exists():
-    rmtree(test_dir)
-test_dir.mkdir(parents=True)
 
 
 def test_study():
@@ -38,13 +35,17 @@ def test_study():
         to a new study instance and runs it.
     5.  It checks for equality between the results of the first two runs.
     """
-    from VITools.phantom import Phantom
-    import numpy as np
+    
+    if test_dir.exists():
+        rmtree(test_dir)
+    test_dir.mkdir(parents=True)
+    
     phantoms = get_available_phantoms()
     input_df = Study.generate_from_distributions(phantoms=['Water Phantom'],
                                                  study_count=2,
                                                  views=[20],
-                                                 scan_coverage=(0, 7))
+                                                 scan_coverage=(0, 7),
+                                                 output_directory=test_dir)
     study1 = Study(input_df)
     study1.run_all(parallel=False, overwrite=True)
     results1 = study1.results

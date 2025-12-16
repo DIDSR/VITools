@@ -438,24 +438,31 @@ Results:\n
 
         # Check for chunked execution
         if parallel and (chunk_size is not None) and shutil.which("qsub"):
-             study_plan = self.metadata
-             chunked_study_plans = [study_plan[i:i + chunk_size] for i in range(0, len(study_plan), chunk_size)]
+            study_plan = self.metadata
+            chunked_study_plans = [study_plan[i:i + chunk_size] for i in range(0, len(study_plan), chunk_size)]
 
-             for chunk_id, study_plan_chunk in enumerate(chunked_study_plans):
-                 study_chunk = self.__class__(study_plan_chunk)
-                 print(f'now running chunk: {chunk_id + 1}/{len(chunked_study_plans)}')
-                 study_chunk.run_all(parallel=True, chunk_size=None, overwrite=False)
-             return self
+            for chunk_id, study_plan_chunk in enumerate(chunked_study_plans):
+                study_chunk = self.__class__(study_plan_chunk)
+                print(f'now running chunk: {chunk_id + 1}/{len(chunked_study_plans)}')
+                study_chunk.run_all(parallel=True, chunk_size=None, overwrite=False)
+            return self
 
-        results = self.results
-        patientids = [int(o.split('case_')[1]) for o in self.metadata.case_id if o not in list(results.get('case_id', []))]
+        patientids = []
+        for i, row in self.metadata.iterrows():
+            patientid = int(row.case_id.split('case_')[1])
+            if not (Path(row.output_directory) / f'metadata_{patientid}.csv').exists():
+                patientids.append(patientid)
         output = Path(self.metadata.iloc[0]['output_directory']).parent
         if parallel and not shutil.which("qsub"):
             print("qsub not found, running in serial mode.")
             parallel = False
 
         try:
-            patientids = [int(os.environ['SLURM_ARRAY_TASK_ID'])]
+            task_id = int(os.environ['SLURM_ARRAY_TASK_ID'])
+            if task_id not in patientids:
+                print(f'Task {task_id} already completed, skipping.')
+                return self
+            patientids = [task_id]
             print(f'Now running from job {patientids[0]}')
         except KeyError:
             pass
@@ -478,7 +485,7 @@ Results:\n
             for patientid in tqdm(patientids):
                 print(f'Now running: case {patientid}')
                 results = self.run_study(patientid)
-                series = self.metadata[self.metadata.case_id  == f'case_{patientid:04d}'].iloc[0]
+                series = self.metadata[self.metadata.case_id == f'case_{patientid:04d}'].iloc[0]
                 output_directory = Path(series.output_directory)
                 print(f"saving intermediate results to {output_directory / f'metadata_{patientid}.csv'}")
                 results.to_csv(output_directory / f'metadata_{patientid}.csv',
@@ -620,7 +627,7 @@ def vit_cli(arg_list: list[str] | None = None):
 
 
 def clean_study(study_root: str):
-    '''removes intermediate files from incomplete scans
+    r'''removes intermediate files from incomplete scans
 
     Args:
         study_root (str): root folder containing study, must contain *_study_plan.csv file

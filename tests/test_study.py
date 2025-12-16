@@ -45,7 +45,7 @@ def test_study():
                                                  study_count=2,
                                                  views=[20],
                                                  scan_coverage=(0, 7),
-                                                 output_dir=test_dir)
+                                                 output_directory=test_dir)
     study1 = Study(input_df)
     study1.run_all(parallel=False, overwrite=True)
     results1 = study1.results

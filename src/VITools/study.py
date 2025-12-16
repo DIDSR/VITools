@@ -627,7 +627,7 @@ def vit_cli(arg_list: list[str] | None = None):
 
 
 def clean_study(study_root: str):
-    '''removes intermediate files from incomplete scans
+    r'''removes intermediate files from incomplete scans
 
     Args:
         study_root (str): root folder containing study, must contain *_study_plan.csv file

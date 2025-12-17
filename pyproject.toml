@@ -11,9 +11,10 @@ dependencies = [
   "pandas",
   "pytest",
   "pydicom",
-  "monai",
+  "scipy",
   "gecatsim @ git+https://github.com/xcist/main.git"
 ]
+
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",

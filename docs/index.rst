@@ -1,5 +1,5 @@
-VITools: Tools for Conducting Virtual Imaging Trials
-====================================================
+VITools: The Virtual Imaging Trial Orchestrator
+=================================================
 
 .. image:: https://github.com/DIDSR/VITools/actions/workflows/build.yml/badge.svg
    :target: https://github.com/DIDSR/VITools/actions/workflows/build.yml
@@ -21,9 +21,16 @@ VITools: Tools for Conducting Virtual Imaging Trials
    :width: 400
    :align: center
 
-**VITools** is a Python library designed to simplify the process of conducting virtual imaging trials. It provides high-level, object-oriented wrappers for the `XCIST CT Simulation framework <https://github.com/xcist>`_, making it easier to set up, run, and manage complex imaging simulations.
+**VITools** is an orchestration package for conducting Virtual Imaging Trials (VCTs). It serves as a generic, horizontal **adaptor layer** connecting common imaging simulation backends with diverse digital phantoms.
 
-Whether you are generating synthetic datasets for AI/ML model training, evaluating image reconstruction algorithms, or studying the impact of scanner parameters, VITools provides the building blocks to streamline your workflow.
+By abstracting away the unique complexities of individual simulation packages, VITools allows researchers to focus on the study design rather than the underlying mechanics of the simulator.
+
+VITools vs. VICTRE
+------------------
+It is important to distinguish **VITools** from **VICTRE** (Virtual Imaging Clinical Trial for Regulatory Evaluation):
+
+*   **VICTRE** is a **vertical stack**: It is a specific, end-to-end pipeline designed for a specific purpose (mammography/tomosynthesis breast imaging). It tightly couples specific phantom models, compression simulations, and MC-GPU imaging.
+*   **VITools** is a **horizontal adaptor layer**: It is a general-purpose infrastructure designed to run *any* compatible simulation backend with *any* compatible phantom. While VICTRE represents a specific application, VITools represents the "operating system" or framework upon which many such applications (including future versions of VICTRE-like pipelines) can be built.
 
 Key Features
 ------------
@@ -31,7 +38,34 @@ Key Features
 *   **Extensible by Design**: Easily add new phantoms via a `pluggy`-based plugin system.
 *   **Automated Workflow**: Handles the end-to-end process from phantom definition to DICOM image generation.
 *   **Scalable Studies**: The `Study` class enables the management and execution of large-scale experiments, with support for parallel execution on SGE clusters.
-*   **Configuration-Based**: Leverages the powerful configuration system of XCIST for detailed control over scanner physics, geometry, and protocols.
+*   **Configuration-Based**: Leverages the powerful configuration system of the underlying backend (e.g., XCIST) for detailed control.
+
+How it Works
+------------
+VITools standardizes the VCT workflow into two primary wrapping steps:
+
+1.  **Wrap your Imaging Simulator**: The `Scanner` class wraps a simulation engine (backend), exposing a common API for configuring physics, geometry, and protocols.
+2.  **Wrap your Phantom**: The `Phantom` class wraps your digital subject data (numpy arrays, voxel spacing), making it intelligible to the scanner wrapper.
+
+Once these two components are wrapped, VITools handles the "handshake" between them—voxelizing the phantom, generating configuration files, running the simulation, and reconstructing the output—allowing you to run large, complex studies with minimal boilerplate.
+
+Supported Backends & Roadmap
+----------------------------
+VITools is designed to be backend-agnostic.
+
+**Current Support:**
+
+*   **XCIST (The X-ray CT Image Simulation Toolkit)**: The default backend for VITools.
+
+    *   **Open Source**: XCIST is available under the **BSD 3-Clause License**.
+    *   **Validated**: XCIST is a thoroughly validated 3D CT simulation framework.
+
+        *   *Wu et al., "XCIST—an open access x-ray/CT simulation toolkit," Physics in Medicine & Biology, 2022.*
+        *   *Zhang et al., "Development and tuning of models for accurate simulation of CT spatial resolution using CatSim," Physics in Medicine & Biology, 2024.*
+
+**Planned / Possible:**
+
+*   **MC-GPU**: Future integrations may include wrappers for MC-GPU (used in VICTRE), allowing users to switch between ray-tracing (XCIST) and Monte Carlo (MC-GPU) backends within the same study definition.
 
 Installation
 ------------
@@ -74,7 +108,7 @@ The `Phantom` class is a container for a numpy array and some metadata, like the
 
 Scanner
 ~~~~~~~
-A `Scanner` takes a `Phantom` and simulates a CT scan, generating projection data and a reconstructed image.
+A `Scanner` takes a `Phantom` and simulates a CT scan, generating projection data and a reconstructed image. It wraps the simulation backend (e.g., XCIST) and is configured with a specific `Phantom`.
 
 Basic Usage
 -----------
@@ -168,10 +202,11 @@ For a detailed example, please refer to one of the repositories using `VITools`.
 
 Repositories using `VITools`
 ----------------------------
+The following repositories demonstrate the **phantom-agnostic** nature of VITools, applying the same simulation orchestration to diverse anatomical regions:
 
--   `InSilicoICH <https://github.com/DIDSR/InSilicoICH>`_: For generating synthetic non-contrast CT datasets of intracranial hemorrhage (ICH).
--   `PedSilicoLVO <https://github.com/brandonjnelsonFDA/PedSilicoLVO>`_: For generating synthetic large vessel occlusion (LVO) non-contrast CT datasets.
--   `PedSilicoAbdomen <https://github.com/DIDSR/PedSilicoAbdomen>`_: For generating synthetic abdominal non-contrast CT datasets of liver metastases.
+-   `InSilicoICH <https://github.com/DIDSR/InSilicoICH>`_: For generating synthetic non-contrast CT datasets of **intracranial hemorrhage (ICH)**.
+-   `PedSilicoLVO <https://github.com/brandonjnelsonFDA/PedSilicoLVO>`_: For generating synthetic **large vessel occlusion (LVO)** non-contrast CT datasets.
+-   `PedSilicoAbdomen <https://github.com/DIDSR/PedSilicoAbdomen>`_: For generating synthetic **abdominal** non-contrast CT datasets of liver metastases.
 -   `InSilicoGUI <https://github.com/DIDSR/InSilicoGUI>`_: Provides a graphical user interface to the phantoms and imaging simulations.
 
 

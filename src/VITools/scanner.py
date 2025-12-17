@@ -24,7 +24,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pydicom
 import gecatsim as xc
-from monai.data import MetaTensor
 
 from gecatsim.reconstruction.pyfiles import recon
 from .phantom import (voxelize_ground_truth,
@@ -281,8 +280,6 @@ class Scanner():
         self.output_dir = output_dir
 
         img = phantom.get_CT_number_phantom()
-        if isinstance(img, MetaTensor):
-            img = img.numpy()
 
         self.phantom = phantom
         self.scanner_model = scanner_model if scanner_model in available_scanners else 'Scanner_Default'

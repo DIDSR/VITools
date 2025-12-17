@@ -10,34 +10,52 @@ the XCIST simulation framework.
 from pathlib import Path
 
 import numpy as np
-from monai.transforms import Resize
+import scipy.ndimage
 import gecatsim as xc
 
 from . import dicom_to_voxelized_phantom
 
-def resize(phantom: np.ndarray, shape: tuple, **kwargs) -> np.ndarray:
+def resize(phantom: np.ndarray, shape: tuple | int, **kwargs) -> np.ndarray:
     """Resizes a phantom to a new shape while maintaining aspect ratio.
 
-    This function uses MONAI's Resize transform to resize a 2D or 3D phantom
-    array. The `size_mode='longest'` option scales the longest dimension to
-    match the corresponding dimension in `shape`, and scales other dimensions
-    proportionally.
+    This function uses scipy.ndimage.zoom to resize a 2D or 3D phantom
+    array. This implements the equivalent of MONAI's `size_mode='longest'` 
+    which scales the longest dimension to match the corresponding dimension
+    in `shape`, and scales other dimensions proportionally.
 
     mode = 'nearest' is useful for downsizing without interpolation errors
+    (mapped to scipy order=0).
 
     Args:
         phantom (np.ndarray): The phantom image array to resize.
-        shape (tuple): The target shape for the phantom.
-        **kwargs: Additional keyword arguments to be passed to
-            `monai.transforms.Resize`. 
-            E.g.: `from monai.transforms import Resize; Resize?`
+        shape (tuple | int): The target shape for the phantom. If a tuple,
+            max(shape) is used as the target size for the longest dimension.
+        **kwargs: Additional keyword arguments.
+            Supported:
+            - mode: 'nearest' (use order=0), otherwise defaults to order=1 (linear).
+            - order: directly passed to scipy.ndimage.zoom.
 
     Returns:
         np.ndarray: The resized phantom array.
     """
-    resize_transform = Resize(max(shape), size_mode='longest', **kwargs)
-    # MONAI transforms expect a channel dimension, so we add and remove one.
-    resized = resize_transform(phantom[None])[0]
+    if isinstance(shape, (tuple, list)):
+        target_max = max(shape)
+    else:
+        target_max = shape
+    
+    current_max = max(phantom.shape)
+    scale = target_max / current_max
+    
+    # Handle interpolation mode
+    mode = kwargs.get('mode', None)
+    order = kwargs.get('order', 1) # Default to linear (1) for safety
+    if mode == 'nearest':
+        order = 0
+    
+    # Calculate zoom factors for each dimension
+    zoom = [scale] * phantom.ndim
+    
+    resized = scipy.ndimage.zoom(phantom, zoom, order=order)
     return resized
 
 

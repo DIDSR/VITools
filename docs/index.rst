@@ -1,22 +1,6 @@
 VITools: The Virtual Imaging Trial Orchestrator
 =================================================
 
-.. image:: https://github.com/DIDSR/VITools/actions/workflows/build.yml/badge.svg
-   :target: https://github.com/DIDSR/VITools/actions/workflows/build.yml
-   :alt: Build Status
-
-.. image:: https://img.shields.io/pypi/v/VITools.svg
-   :target: https://pypi.org/project/VITools/
-   :alt: PyPI
-
-.. image:: https://img.shields.io/conda/vn/conda-forge/VITools.svg
-   :target: https://anaconda.org/conda-forge/VITools
-   :alt: Conda-Forge
-
-.. image:: https://img.shields.io/pypi/l/VITools.svg
-   :target: https://github.com/DIDSR/VITools/blob/master/LICENSE
-   :alt: License
-
 .. image:: _static/VITools.png
    :width: 400
    :align: center

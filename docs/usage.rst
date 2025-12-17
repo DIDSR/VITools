@@ -25,7 +25,7 @@ Size (mm): (10.0, 10.0, 15.0)
 Using the Scanner
 -----------------
 
-The `Scanner` class takes a `Phantom` and simulates a CT scan, generating projection data and a reconstructed image.
+The `Scanner` class is the wrapper around the simulation backend. It takes a `Phantom` and simulates a CT scan, generating projection data and a reconstructed image. Currently, `Scanner` defaults to wrapping the **XCIST** backend.
 
 First, you need to instantiate a `Phantom`. For this example, we will use a phantom from the available phantom plugins:
 
@@ -52,7 +52,7 @@ Age (years): 0
 Shape (voxels): (100, 100, 100)
 Size (mm): (100.0, 200.0, 200.0)
 
-Now, we can pass the `Phantom` object to the `Scanner`:
+Now, we can pass the `Phantom` object to the `Scanner`. The `scanner_model` argument maps to a configuration file understood by the backend (XCIST).
 
 .. code-block:: python
 
@@ -154,7 +154,7 @@ The input CSV file must contain specific columns that define the parameters for 
 Below is an example of a valid CSV file content using the built-in 'Water Phantom':
 
 .. literalinclude:: example_study_plan.csv
-   :language: csv
+   :language: text
 
 Cleaning Incomplete Simulations
 -------------------------------

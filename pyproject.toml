@@ -1,6 +1,6 @@
 [project]
 name = "VITools"
-version = "0.3.2"
+version = "0.4.0"
 authors = [
   {name="Brandon Nelson", email="brandon.nelson@fda.hhs.gov"},
 ]

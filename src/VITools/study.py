@@ -16,7 +16,7 @@ from datetime import datetime
 from pathlib import Path
 from tqdm import tqdm
 import shutil
-from time import sleep
+from time import sleep, time
 import ast
 from subprocess import run
 from argparse import ArgumentParser
@@ -394,17 +394,58 @@ Results:\n
                 temp_errors = scan_logs_for_errors(log_dir, verbose=False)
                 output_df = self.get_scans_completed()
 
-                # Count successful scans
-                successful_scans = len(np.unique(output_df.get('case_id', [])))
-
-                # Check for errors
-                new_errors_found = False
-                if len(temp_errors) > len(errors):
-                    errors = temp_errors
-                    new_errors_found = True
-                    for task_id in errors:
+                # Update errors from logs
+                for task_id, msg in temp_errors.items():
+                    if task_id not in errors:
+                        errors[task_id] = msg
                         print(f"--- ERROR FOUND IN: {task_id} ---")
-                        print(f"Error Message: {errors[task_id]}\n")
+                        print(f"Error Message: {msg}\n")
+
+                # Count successful scans
+                successful_cases = set(output_df.get('case_id', []))
+                successful_scans = len(successful_cases)
+
+                # Get set of completed IDs as integers to handle varying string formats (case_0001 vs case_1)
+                successful_ids = set()
+                for cid in successful_cases:
+                    try:
+                        successful_ids.add(int(str(cid).split('_')[-1]))
+                    except (ValueError, IndexError):
+                        pass
+
+                # Check for stalled logs (timeout)
+                # Iterate over log files in log_dir
+                try:
+                    for entry in os.scandir(log_dir):
+                        if entry.is_file() and entry.name.startswith('task_') and entry.name.endswith('.log'):
+                             # Extract task id from filename "task_0.log"
+                             try:
+                                 # Regex match to be safe
+                                 match = re.search(r'task_(\d+)\.log', entry.name)
+                                 if match:
+                                     task_id_str = match.group(1)
+                                     task_id = int(task_id_str)
+
+                                     # Check if already completed
+                                     if task_id in successful_ids:
+                                         continue
+
+                                     # Check if already errored
+                                     if entry.name in errors:
+                                         continue
+
+                                     # Check modification time
+                                     mtime = entry.stat().st_mtime
+                                     if time() - mtime > 8 * 3600:
+                                         msg = "Timeout: Exceeded limit of 8 hours"
+                                         errors[entry.name] = msg
+                                         print(f"--- ERROR FOUND IN: {entry.name} ---")
+                                         print(f"Error Message: {msg}\n")
+
+                             except Exception:
+                                 pass
+                except FileNotFoundError:
+                    pass
 
                 # Total completed = successes + failures
                 current_total_completed = successful_scans + len(errors)

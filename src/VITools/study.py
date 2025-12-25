@@ -13,6 +13,8 @@ import os
 import re
 import sys
 from datetime import datetime
+import os
+import re
 from pathlib import Path
 from tqdm import tqdm
 import shutil
@@ -388,6 +390,14 @@ Results:\n
         output_df = self.get_scans_completed()
         scans_completed = len(np.unique(output_df.get('case_id', [])))
         errors = {}
+
+        # Define error log path
+        try:
+            study_root = Path(self.metadata.iloc[0]['output_directory']).parent
+            error_log_path = study_root / 'study_errors.log'
+        except (IndexError, KeyError):
+            error_log_path = None
+
         with tqdm(total=scans_queued, initial=scans_completed, desc='Scans completed in parallel') as pbar:
             while scans_completed < scans_queued:
                 sleep(1)
@@ -398,8 +408,11 @@ Results:\n
                 for task_id, msg in temp_errors.items():
                     if task_id not in errors:
                         errors[task_id] = msg
-                        print(f"--- ERROR FOUND IN: {task_id} ---")
-                        print(f"Error Message: {msg}\n")
+                        error_msg = f"--- ERROR FOUND IN: {task_id} ---\nError Message: {msg}\n\n"
+                        print(error_msg)
+                        if error_log_path:
+                            with open(error_log_path, 'a') as f:
+                                f.write(error_msg)
 
                 # Count successful scans
                 successful_cases = set(output_df.get('case_id', []))
@@ -439,8 +452,11 @@ Results:\n
                                      if time() - mtime > 8 * 3600:
                                          msg = "Timeout: Exceeded limit of 8 hours"
                                          errors[entry.name] = msg
-                                         print(f"--- ERROR FOUND IN: {entry.name} ---")
-                                         print(f"Error Message: {msg}\n")
+                                         error_msg = f"--- ERROR FOUND IN: {entry.name} ---\nError Message: {msg}\n\n"
+                                         print(error_msg)
+                                         if error_log_path:
+                                             with open(error_log_path, 'a') as f:
+                                                 f.write(error_msg)
 
                              except Exception:
                                  pass
